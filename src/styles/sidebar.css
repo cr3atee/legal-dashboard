@@ -560,3 +560,49 @@ body.sidebar-collapsed .sidebar-collapse-btn {
     min-height: 48px !important;
   }
 }
+
+/* Sidebar auto-expands on desktop hover and keyboard focus; manual collapse control was removed. */
+@media (hover: hover) and (pointer: fine) and (min-width: 769px) {
+  .sidebar,
+  body.sidebar-collapsed .sidebar {
+    width: 92px !important;
+    min-width: 92px !important;
+    max-width: 292px !important;
+    position: sticky;
+    z-index: 40;
+    transition: width .22s cubic-bezier(.2, 0, .2, 1),
+                padding-left .22s cubic-bezier(.2, 0, .2, 1),
+                padding-right .22s cubic-bezier(.2, 0, .2, 1),
+                box-shadow .16s ease !important;
+    overflow-x: hidden;
+  }
+
+  body.sidebar-collapsed .sidebar:hover,
+  body.sidebar-collapsed .sidebar:has(.nav-btn:focus-visible) {
+    width: 292px !important;
+    box-shadow: 18px 0 38px rgba(7, 25, 68, .18);
+  }
+
+  body.sidebar-collapsed .sidebar:hover .brand,
+  body.sidebar-collapsed .sidebar:has(.nav-btn:focus-visible) .brand {
+    justify-content: flex-start !important;
+    padding: 14px 18px !important;
+  }
+
+  body.sidebar-collapsed .sidebar:hover .brand-text,
+  body.sidebar-collapsed .sidebar:has(.nav-btn:focus-visible) .brand-text {
+    display: grid !important;
+  }
+
+  body.sidebar-collapsed .sidebar:hover .nav-btn,
+  body.sidebar-collapsed .sidebar:has(.nav-btn:focus-visible) .nav-btn {
+    grid-template-columns: 34px minmax(0, 1fr) !important;
+    justify-items: start !important;
+    padding: 10px 14px !important;
+  }
+
+  body.sidebar-collapsed .sidebar:hover .nav-btn .label,
+  body.sidebar-collapsed .sidebar:has(.nav-btn:focus-visible) .nav-btn .label {
+    display: block !important;
+  }
+}

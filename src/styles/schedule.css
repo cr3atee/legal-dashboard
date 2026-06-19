@@ -376,6 +376,14 @@
   color: var(--schedule-dark);
 }
 
+.schedule-chevron-icon,
+.schedule-mini-chevron-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  pointer-events: none;
+}
+
 .schedule-date-section-body {
   display: grid;
   gap: 10px;

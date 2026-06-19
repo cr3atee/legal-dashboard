@@ -26,13 +26,6 @@ export function renderSidebar() {
           </button>
         `).join('')}
       </nav>
-
-      <div class="sidebar-bottom">
-        <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" type="button" title="Свернуть меню">
-          <span class="collapse-icon" aria-hidden="true">${iconChevronLeft()}</span>
-          <span class="collapse-label">Свернуть</span>
-        </button>
-      </div>
     </aside>
   `;
 }
@@ -73,7 +66,4 @@ function iconBuilding() {
 }
 function iconMeeting() {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7a3 3 0 1 0 0-.01zM16 7a3 3 0 1 0 0-.01zM12 14a3 3 0 1 0 0-.01z"></path><path d="M5 19c.4-2 1.9-3 4-3"></path><path d="M19 19c-.4-2-1.9-3-4-3"></path><path d="M8 18c.6-2 2-3 4-3s3.4 1 4 3"></path></svg>`;
-}
-function iconChevronLeft() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>`;
 }

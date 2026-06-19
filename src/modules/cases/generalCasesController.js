@@ -1362,17 +1362,22 @@ function renderCasesTable(rows) {
   return `
     <div class="general-cases-table-wrap">
       <table class="general-cases-table">
+        <colgroup>
+          <col class="general-col-case-no">
+          <col class="general-col-court-no">
+          <col class="general-col-category">
+          <col class="general-col-subject">
+          <col class="general-col-plaintiff">
+          <col class="general-col-status">
+          <col class="general-col-actions">
+        </colgroup>
         <thead>
           <tr>
             <th>№ ПК</th>
             <th>№ дела в суде</th>
-            <th>Истец</th>
-            <th>Ответчик</th>
-            <th>Предмет спора</th>
-            <th>Адрес</th>
             <th>Категория спора</th>
-            <th>Процессуальное положение</th>
-            <th>Дата</th>
+            <th>Предмет спора</th>
+            <th>Истец</th>
             <th>Статус</th>
             <th></th>
           </tr>
@@ -1387,14 +1392,14 @@ function renderCasesTable(rows) {
 
 function renderCasesTableRow(row) {
   const statusBadges = `
-    ${state.archived ? '<span class="case-badge archive">Архив</span>' : ''}
-    ${Number(row.attendance_flag) === 1 ? '<span class="case-badge attendance">Явочное</span>' : ''}
-    ${Number(row.attendance_hearing_missing) === 1 ? '<span class="case-badge hearing-missing">Дата и время заседания не указаны</span>' : ''}
-    ${Number(row.control_flag) === 1 ? '<span class="case-badge control">Контроль</span>' : ''}
-    ${Number(row.review_show_flag) === 1 ? '<span class="case-badge review">Отзыв показать</span>' : ''}
-    ${Number(row.emergency_fund_flag) === 1 ? '<span class="case-badge emergency">Аварийный фонд</span>' : ''}
-    ${Number(row.registry_flag) === 1 ? '<span class="case-badge registry">Выморочка</span>' : ''}
-    ${Number(row.control_flag) !== 1 && Number(row.attendance_flag) !== 1 && Number(row.review_show_flag) !== 1 && Number(row.emergency_fund_flag) !== 1 && Number(row.registry_flag) !== 1 && !state.archived ? '<span class="case-badge neutral">Основные дела</span>' : ''}
+    ${state.archived ? renderCaseStatusBadge('archive', 'Архив') : ''}
+    ${Number(row.attendance_flag) === 1 ? renderCaseStatusBadge('attendance', 'Явочное') : ''}
+    ${Number(row.attendance_hearing_missing) === 1 ? renderCaseStatusBadge('hearing-missing', 'Дата и время заседания не указаны', 'Нет даты') : ''}
+    ${Number(row.control_flag) === 1 ? renderCaseStatusBadge('control', 'Контроль') : ''}
+    ${Number(row.review_show_flag) === 1 ? renderCaseStatusBadge('review', 'Отзыв показать', 'Отзыв') : ''}
+    ${Number(row.emergency_fund_flag) === 1 ? renderCaseStatusBadge('emergency', 'Аварийный фонд', 'АФ') : ''}
+    ${Number(row.registry_flag) === 1 ? renderCaseStatusBadge('registry', 'Выморочка') : ''}
+    ${Number(row.control_flag) !== 1 && Number(row.attendance_flag) !== 1 && Number(row.review_show_flag) !== 1 && Number(row.emergency_fund_flag) !== 1 && Number(row.registry_flag) !== 1 && !state.archived ? renderCaseStatusBadge('neutral', 'Основные дела', 'Основное') : ''}
     ${getCommentBadge(row)}
   `;
   const statusClass = getCaseStatusClass(row);
@@ -1404,14 +1409,10 @@ function renderCasesTableRow(row) {
     <tr class="general-cases-table-row ${statusClass}" data-general-row="${row.id}" style="${statusStyle}">
       <td class="primary-cell"><span class="table-case-accent" aria-hidden="true"></span><strong>${formatInline(row.case_no, 'Без номера')}</strong></td>
       <td>${formatText(row.court_no)}</td>
-      <td>${formatText(row.plaintiff)}</td>
-      <td>${formatText(row.defendant)}</td>
-      <td class="wide-cell">${formatText(row.claim_subject)}</td>
-      <td class="wide-cell">${formatText(row.claim_address)}</td>
       <td>${formatText(row.category)}</td>
-      <td class="wide-cell">${formatText(row.procedural_position)}</td>
-      <td>${formatInline(row.registration_date, '—')}</td>
-      <td><div class="general-cases-table-badges">${statusBadges}</div></td>
+      <td class="wide-cell">${formatText(row.claim_subject)}</td>
+      <td>${formatText(row.plaintiff)}</td>
+      <td class="status-cell"><div class="general-cases-table-badges">${statusBadges}</div></td>
       <td class="actions-cell">
         ${state.archived ? `<button class="btn small restore" data-general-restore-card="${row.id}" type="button">Восстановить</button>` : ''}
         ${renderRelatedOpenButton(row, 'table')}
@@ -1420,6 +1421,10 @@ function renderCasesTableRow(row) {
       </td>
     </tr>
   `;
+}
+
+function renderCaseStatusBadge(className, fullLabel, displayLabel = fullLabel) {
+  return `<span class="case-badge ${className}" title="${escapeAttr(fullLabel)}" aria-label="${escapeAttr(fullLabel)}">${escapeHtml(displayLabel)}</span>`;
 }
 
 function renderCaseCard(row) {

@@ -87,6 +87,26 @@ function buildNspdWmsUrl(layerId) {
   return `/nspd/api/aeggis/v4/${cleanId}/wms`;
 }
 
+function DirectionChevron({ direction }) {
+  const paths = {
+    right: "m9 18 6-6-6-6",
+    down: "m6 9 6 6 6-6"
+  };
+
+  return (
+    <svg className="directionChevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d={paths[direction]}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function makeAreaBoundsKey(areaBounds) {
   if (!areaBounds) return "";
   return [areaBounds.south, areaBounds.west, areaBounds.north, areaBounds.east]
@@ -3234,8 +3254,9 @@ export default function App() {
                       className="nspdGroupTitle"
                       onClick={() => updateNspdGroup(category.id, { expanded: !category.expanded })}
                       title="Свернуть/развернуть категорию"
+                      aria-expanded={category.expanded}
                     >
-                      <span>{category.expanded ? "v" : ">"}</span>
+                      <DirectionChevron direction={category.expanded ? "down" : "right"} />
                       <strong>{category.name}</strong>
                       <small>{categoryLayerCount}</small>
                     </button>
@@ -3273,8 +3294,9 @@ export default function App() {
                                 className="nspdGroupTitle"
                                 onClick={() => updateNspdGroup(subcategory.id, { expanded: !subcategory.expanded })}
                                 title="Свернуть/развернуть подкатегорию"
+                                aria-expanded={subcategory.expanded}
                               >
-                                <span>{subcategory.expanded ? "v" : ">"}</span>
+                                <DirectionChevron direction={subcategory.expanded ? "down" : "right"} />
                                 <strong>{subcategory.name}</strong>
                                 <small>{groupLayers.length}</small>
                               </button>

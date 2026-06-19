@@ -2571,11 +2571,20 @@
 
 .general-cases-table {
   width: 100%;
-  min-width: 1260px;
+  min-width: 1090px;
   border-collapse: separate;
   border-spacing: 0;
   color: #10214f;
+  table-layout: fixed;
 }
+
+.general-cases-table .general-col-case-no { width: 130px; }
+.general-cases-table .general-col-court-no { width: 150px; }
+.general-cases-table .general-col-category,
+.general-cases-table .general-col-subject { width: 200px; }
+.general-cases-table .general-col-plaintiff { width: 160px; }
+.general-cases-table .general-col-status { width: 132px; }
+.general-cases-table .general-col-actions { width: 116px; }
 
 .general-cases-table th {
   position: sticky;
@@ -2644,7 +2653,20 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  min-width: 120px;
+  max-width: 132px;
+}
+
+.general-cases-table .status-cell {
+  width: 132px;
+  max-width: 132px;
+}
+
+.general-cases-table .status-cell .case-badge {
+  max-width: 118px;
+  padding: 5px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .case-badge.neutral {

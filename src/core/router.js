@@ -25,8 +25,8 @@ export function openView(viewId) {
   document.body.dataset.currentView = viewId;
   window.dispatchEvent(new CustomEvent('app:view-changed', { detail: { viewId } }));
 
-  // В рабочих разделах меню слева сразу сворачивается, на главной остается раскрытым.
-  setSidebarCollapsed(viewId !== 'dashboard', false);
+  // One sidebar behavior for every view: compact by default, expanded by hover/focus.
+  setSidebarCollapsed(true);
 
   if (viewId !== 'dashboard' && typeof window.setDashboardEditMode === 'function') {
     window.setDashboardEditMode(false);

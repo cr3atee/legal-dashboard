@@ -410,7 +410,7 @@ function renderGroup(group) {
       <div class="schedule-date-section-body">
         ${renderCaseGrid(group.cases, group.sessionDate)}
       </div>
-      <button class="schedule-group-chevron schedule-group-chevron-bottom" data-schedule-group-toggle="${escapeAttr(group.sessionDate)}" type="button">${isOpen ? '⌃' : '⌄'}</button>
+      <button class="schedule-group-chevron schedule-group-chevron-bottom" data-schedule-group-toggle="${escapeAttr(group.sessionDate)}" type="button" aria-expanded="${isOpen ? 'true' : 'false'}" aria-label="${isOpen ? 'Свернуть заседания' : 'Развернуть заседания'}" title="${isOpen ? 'Свернуть заседания' : 'Развернуть заседания'}">${renderChevronIcon(isOpen ? 'up' : 'down')}</button>
     </article>
   `;
 }
@@ -1081,6 +1081,14 @@ function formatText(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value).replaceAll('\n', '&#10;');
+}
+
+function renderChevronIcon(direction) {
+  const paths = {
+    up: 'm18 15-6-6-6 6',
+    down: 'm6 9 6 6 6-6',
+  };
+  return `<svg class="schedule-chevron-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${paths[direction]}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
 
 function escapeHtml(value) {

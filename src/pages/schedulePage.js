@@ -1,4 +1,7 @@
 export function renderSchedulePage() {
+  const chevronLeft = renderChevronIcon('left');
+  const chevronRight = renderChevronIcon('right');
+
   return `
     <section class="view schedule-view" id="schedule">
       <div class="page-head schedule-page-head">
@@ -55,9 +58,9 @@ export function renderSchedulePage() {
           <input data-schedule-date-input type="hidden">
           <div class="schedule-mini-calendar" data-schedule-mini-calendar>
             <div class="schedule-mini-calendar-head">
-              <button class="icon-button" data-schedule-mini-prev type="button" aria-label="Предыдущий месяц">‹</button>
+              <button class="icon-button" data-schedule-mini-prev type="button" aria-label="Предыдущий месяц">${chevronLeft}</button>
               <strong data-schedule-mini-title></strong>
-              <button class="icon-button" data-schedule-mini-next type="button" aria-label="Следующий месяц">›</button>
+              <button class="icon-button" data-schedule-mini-next type="button" aria-label="Следующий месяц">${chevronRight}</button>
             </div>
             <div class="schedule-mini-weekdays">
               <span>ПН</span><span>ВТ</span><span>СР</span><span>ЧТ</span><span>ПТ</span><span>СБ</span><span>ВС</span>
@@ -150,4 +153,12 @@ export function renderSchedulePage() {
       </dialog>
     </section>
   `;
+}
+
+function renderChevronIcon(direction) {
+  const paths = {
+    left: 'm15 18-6-6 6-6',
+    right: 'm9 18 6-6-6-6',
+  };
+  return `<svg class="schedule-mini-chevron-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${paths[direction]}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
