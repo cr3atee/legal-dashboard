@@ -1,0 +1,299 @@
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #06111a;
+  --panel: rgba(10, 28, 43, .92);
+  --line: rgba(157, 198, 228, .17);
+  --text: #eef5f9;
+  --muted: #8ea6b8;
+  --blue: #4388ff;
+  --blue-dark: #2455cf;
+  --green: #23c7a7;
+  --orange: #ffbe55;
+  --red: #ff7182;
+  --purple: #8f79e8;
+  --navy: #07131f;
+  --surface-soft: rgba(17, 39, 58, .86);
+  --surface-blue: rgba(25, 52, 73, .82);
+  --line-strong: rgba(157, 198, 228, .30);
+  --subtle: #6f8799;
+  --primary-soft: rgba(67, 136, 255, .13);
+  --cyan: #2bc7dc;
+  --shadow: 0 12px 36px rgba(0, 0, 0, .20);
+  --shadow-md: 0 24px 58px rgba(0, 0, 0, .28);
+  --shadow-lg: 0 32px 90px rgba(0, 0, 0, .38);
+  --app-bg: var(--bg);
+  --sidebar-bg: #07131f;
+  --header-bg: rgba(10, 28, 43, .94);
+  --card-bg: rgba(10, 28, 43, .92);
+  --elevated-bg: rgba(17, 39, 58, .90);
+  --input-bg: rgba(7, 21, 33, .88);
+  --modal-bg: rgba(10, 28, 43, .98);
+  --text-primary: var(--text);
+  --text-secondary: #a6b9c7;
+  --text-muted: #7890a2;
+  --text-placeholder: #60798c;
+  --text-disabled: #657d8f;
+  --border-color: var(--line);
+  --divider-color: rgba(157, 198, 228, .12);
+  --hover-bg: rgba(25, 52, 73, .90);
+  --active-bg: rgba(67, 136, 255, .18);
+  --selected-bg: rgba(67, 136, 255, .14);
+  --disabled-bg: rgba(20, 38, 52, .86);
+  --overlay-bg: rgba(3, 10, 18, .70);
+  --focus-ring: rgba(67, 136, 255, .20);
+  --icon-primary: #dbe8f1;
+  --icon-muted: #91a7b8;
+}
+
+:root[data-theme="dark"] body {
+  color: var(--text) !important;
+  background:
+    radial-gradient(circle at 7% 8%, rgba(43, 199, 220, .10), transparent 24%),
+    radial-gradient(circle at 93% 90%, rgba(67, 136, 255, .11), transparent 27%),
+    var(--bg) !important;
+}
+
+:root[data-theme="dark"] :is(.app, .main, .content, .view) {
+  color: var(--text) !important;
+}
+
+:root[data-theme="dark"] .sidebar {
+  color: var(--text) !important;
+  background:
+    radial-gradient(circle at 20% 0, rgba(43, 199, 220, .11), transparent 28%),
+    linear-gradient(180deg, #0a1c2b 0%, #07131f 100%) !important;
+  border-color: rgba(157, 198, 228, .12) !important;
+  box-shadow: inset -1px 0 0 rgba(157, 198, 228, .08) !important;
+}
+
+:root[data-theme="dark"] .sidebar-bottom {
+  background: linear-gradient(180deg, rgba(7, 19, 31, 0), rgba(7, 19, 31, .98) 34%) !important;
+}
+
+:root[data-theme="dark"] :is(.topbar, .topbar-modern) {
+  color: var(--text) !important;
+  background:
+    radial-gradient(circle at 88% 16%, rgba(43, 199, 220, .10), transparent 28%),
+    linear-gradient(145deg, rgba(255, 255, 255, .035), transparent 45%),
+    rgba(10, 28, 43, .94) !important;
+  border-color: var(--line) !important;
+  box-shadow: var(--shadow) !important;
+}
+
+:root[data-theme="dark"] :is(
+  .panel,
+  .case-card,
+  .widget-shell,
+  .calendar-main-card,
+  .calendar-week-card,
+  #calendar > .calendar-side-card,
+  .calendar-month-panel,
+  .calendar-mode-card,
+  .modal,
+  dialog,
+  .calendar-task-dialog,
+  .calendar-detail-dialog,
+  .calendar-plan-dialog,
+  .calendar-case-link-dialog,
+  .calendar-case-question-dialog,
+  .calendar-confirm-dialog,
+  .calendar-conflict-dialog,
+  .calendar-dependent-dialog,
+  .calendar-move-dialog,
+  .calendar-move-time-dialog,
+  .meetings-entry-card,
+  .meetings-editor-card,
+  .meetings-table-card,
+  .meetings-inner-panel,
+  .meetings-form-block,
+  .meetings-preloader-card,
+  .map-panel,
+  .map-shell,
+  .registry-card,
+  .utility-panel,
+  .emergency-card,
+  .controlled-case-card,
+  .enforcement-card
+) {
+  color: var(--text) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, .026), transparent 46%),
+    var(--panel) !important;
+  border-color: var(--line) !important;
+  box-shadow: var(--shadow) !important;
+}
+
+:root[data-theme="dark"] :is(
+  .widget-head,
+  .widget-dragbar,
+  .calendar-toolbar,
+  .calendar-week-tools,
+  .calendar-dialog-body,
+  .calendar-detail-body,
+  .calendar-move-body,
+  .calendar-case-link-body,
+  .calendar-conflict-body,
+  .calendar-dependent-body,
+  .calendar-dialog-actions,
+  .modal-footer,
+  .table-wrap,
+  .meetings-table-wrap,
+  .meetings-list-box,
+  .meetings-people-panel,
+  .meetings-selected-summary div,
+  .meetings-selected-list > div span,
+  .meetings-archive-status span
+) {
+  color: var(--text) !important;
+  background: var(--surface-soft) !important;
+  border-color: var(--line) !important;
+}
+
+:root[data-theme="dark"] :is(
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea,
+  .search-input,
+  .date-picker
+) {
+  color: var(--text) !important;
+  background: var(--input-bg) !important;
+  border-color: var(--line) !important;
+  caret-color: var(--blue) !important;
+}
+
+:root[data-theme="dark"] :is(input, textarea)::placeholder {
+  color: var(--text-placeholder) !important;
+}
+
+:root[data-theme="dark"] :is(
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea,
+  .search-input,
+  .date-picker
+):focus {
+  border-color: rgba(67, 136, 255, .68) !important;
+  outline-color: rgba(67, 136, 255, .68) !important;
+  box-shadow: 0 0 0 4px rgba(67, 136, 255, .10) !important;
+}
+
+:root[data-theme="dark"] .btn:not(.primary):not(.danger),
+:root[data-theme="dark"] :is(
+  .topbar-note-btn,
+  .topbar-notify-btn,
+  .topbar-theme-toggle,
+  .profile-action-btn,
+  .calendar-week-date,
+  .calendar-other-toggle,
+  .meetings-mini-toggle,
+  .meetings-inline-back,
+  .meetings-dialog-back
+) {
+  color: var(--text) !important;
+  background: var(--surface-soft) !important;
+  border-color: var(--line) !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme="dark"] .btn:not(.primary):not(.danger):hover,
+:root[data-theme="dark"] :is(
+  .topbar-note-btn,
+  .topbar-notify-btn,
+  .topbar-theme-toggle,
+  .profile-action-btn,
+  .calendar-week-date,
+  .calendar-other-toggle,
+  .meetings-mini-toggle,
+  .meetings-inline-back,
+  .meetings-dialog-back
+):hover {
+  color: #fff !important;
+  background: var(--surface-blue) !important;
+  border-color: var(--line-strong) !important;
+}
+
+:root[data-theme="dark"] :is(
+  .btn.primary,
+  .record-create-plus,
+  .topbar-notify-badge,
+  .calendar-widget-plan-head strong
+) {
+  color: #fff !important;
+  background: linear-gradient(135deg, #2f6fe8, #2455cf) !important;
+  border-color: rgba(131, 180, 255, .38) !important;
+  box-shadow: 0 14px 30px rgba(22, 78, 194, .24) !important;
+}
+
+:root[data-theme="dark"] table {
+  color: var(--text) !important;
+  border-color: var(--line) !important;
+}
+
+:root[data-theme="dark"] th {
+  color: var(--muted) !important;
+  background: var(--surface-soft) !important;
+  border-color: var(--line) !important;
+}
+
+:root[data-theme="dark"] td {
+  color: var(--text) !important;
+  background: var(--panel) !important;
+  border-color: var(--line) !important;
+}
+
+:root[data-theme="dark"] tbody tr:hover td,
+:root[data-theme="dark"] tr.selected td {
+  background: var(--surface-blue) !important;
+}
+
+:root[data-theme="dark"] :is(h1, h2, h3, h4, h5, h6, .page-head h2, .topbar-title-text h1) {
+  color: var(--text) !important;
+}
+
+:root[data-theme="dark"] :is(.page-head p, .topbar p, .muted, small, .empty-cell) {
+  color: var(--muted) !important;
+}
+
+:root[data-theme="dark"] .meetings-view {
+  background:
+    radial-gradient(circle at 7% 8%, rgba(43, 199, 220, .08), transparent 24%),
+    radial-gradient(circle at 93% 90%, rgba(67, 136, 255, .09), transparent 27%),
+    transparent !important;
+}
+
+:root[data-theme="dark"] .meetings-entry-card strong,
+:root[data-theme="dark"] .meetings-main-head h2,
+:root[data-theme="dark"] .meetings-archive-head h3,
+:root[data-theme="dark"] .meetings-table-title h3,
+:root[data-theme="dark"] .meetings-editor-head h3,
+:root[data-theme="dark"] .meetings-block-head h4,
+:root[data-theme="dark"] .meetings-panel-head h4 {
+  color: var(--text) !important;
+}
+
+:root[data-theme="dark"] .meetings-entry-card span:last-child,
+:root[data-theme="dark"] .meetings-main-head p,
+:root[data-theme="dark"] .meetings-archive-head p,
+:root[data-theme="dark"] .meetings-table-title p,
+:root[data-theme="dark"] .meetings-editor-head p,
+:root[data-theme="dark"] .meetings-block-head p,
+:root[data-theme="dark"] .meetings-panel-head p {
+  color: var(--muted) !important;
+}
+
+:root[data-theme="dark"] .meetings-entry-icon,
+:root[data-theme="dark"] .meetings-type-icon {
+  color: var(--blue) !important;
+  background: rgba(67, 136, 255, .12) !important;
+}
+
+:root[data-theme="dark"] .meetings-preloader {
+  background: rgba(3, 10, 18, .68) !important;
+}
+
+:root[data-theme="dark"] dialog::backdrop,
+:root[data-theme="dark"] .modal::backdrop {
+  background: rgba(3, 10, 18, .70) !important;
+  backdrop-filter: blur(6px);
+}
