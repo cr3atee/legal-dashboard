@@ -1320,6 +1320,7 @@
 .calendar-task-dialog-actions {
   justify-content: space-between;
   align-items: center;
+  min-width: 0;
 }
 
 .calendar-dialog-left-actions,
@@ -1328,6 +1329,7 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .calendar-dialog-left-actions {
@@ -1369,17 +1371,45 @@
   align-items: center !important;
   justify-content: space-between !important;
   gap: 14px !important;
-  flex-wrap: nowrap !important;
+  flex-wrap: wrap !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
 }
 .calendar-dialog-left-actions,
 .calendar-dialog-right-actions {
   display: flex !important;
   align-items: center !important;
   gap: 12px !important;
-  flex-wrap: nowrap !important;
+  flex-wrap: wrap !important;
+  min-width: 0 !important;
 }
 .calendar-dialog-left-actions:empty { display: none !important; }
 .calendar-dialog-actions .btn { white-space: nowrap; }
+
+.calendar-delete-icon-btn {
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.calendar-delete-icon-btn svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.calendar-delete-icon-btn:focus-visible {
+  outline: 3px solid rgba(220, 38, 38, .28);
+  outline-offset: 2px;
+}
 @media (max-width: 900px) {
   .calendar-task-dialog-actions,
   .calendar-dialog-left-actions,

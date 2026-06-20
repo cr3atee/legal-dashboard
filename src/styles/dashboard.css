@@ -565,9 +565,14 @@ html[data-theme="light"] .dashboard-modern-grid-shell {
 
 .dashboard-modern .calendar-widget-kanban-task-top span,
 .dashboard-modern .calendar-widget-kanban-task p,
-.dashboard-modern .calendar-today-only-task span,
+.dashboard-modern .calendar-today-only-task span {
+  color: var(--dashboard-muted);
+}
+
 .dashboard-modern .calendar-today-only-head span {
   color: var(--dashboard-muted);
+  font-size: clamp(14px, 1.2vw, 16px);
+  font-weight: 850;
 }
 
 .dashboard-modern .calendar-widget-kanban-task strong,

@@ -560,6 +560,21 @@ function hasDuplicateNspdGroupName(groups, parentId, name, excludeId = "") {
   });
 }
 
+function isNspdGroupDescendant(groups, candidateId, ancestorId) {
+  if (!candidateId || !ancestorId || candidateId === ancestorId) return false;
+  let current = groups.find((group) => group.id === candidateId);
+  const visited = new Set();
+
+  while (current?.parentId) {
+    if (current.parentId === ancestorId) return true;
+    if (visited.has(current.parentId)) return false;
+    visited.add(current.parentId);
+    current = groups.find((group) => group.id === current.parentId);
+  }
+
+  return false;
+}
+
 function normalizeNspdGroupsTree(list, layers = []) {
   const input = Array.isArray(list) && list.length ? list : defaultNspdGroups;
   const hasTree = input.some((group) => group.parentId || group.type === "category" || group.type === "subcategory");
@@ -1349,13 +1364,43 @@ export default function App() {
   function moveNspdGroupByDrop(sourceId, targetId) {
     if (!sourceId || !targetId || sourceId === targetId) return;
     setNspdGroups((prev) => {
-      const from = prev.findIndex((group) => group.id === sourceId);
-      const to = prev.findIndex((group) => group.id === targetId);
-      if (from < 0 || to < 0) return prev;
-      if ((prev[from].parentId || null) !== (prev[to].parentId || null)) return prev;
-      const copy = [...prev];
-      const [item] = copy.splice(from, 1);
-      copy.splice(to, 0, item);
+      const source = prev.find((group) => group.id === sourceId);
+      const target = prev.find((group) => group.id === targetId);
+      if (!source || !target || source.system || source.id === NSPD_ROOT_GROUP_ID) return prev;
+
+      let nextParentId = source.parentId || null;
+      let insertAfterSibling = false;
+
+      if (source.type === "category") {
+        if (target.type !== "category" || target.parentId) return prev;
+        nextParentId = null;
+      } else if (source.type === "subcategory") {
+        nextParentId = target.type === "category" ? target.id : target.parentId || null;
+        insertAfterSibling = target.type === "category";
+        if (!nextParentId) return prev;
+      } else {
+        return prev;
+      }
+
+      if (nextParentId === source.id || isNspdGroupDescendant(prev, nextParentId, source.id)) return prev;
+
+      const moved = { ...source, parentId: nextParentId };
+      const copy = prev
+        .filter((group) => group.id !== source.id)
+        .map((group) => (group.id === nextParentId ? { ...group, expanded: true } : group));
+
+      let insertIndex = copy.findIndex((group) => group.id === target.id);
+
+      if (insertAfterSibling) {
+        const lastChildIndex = copy.reduce(
+          (lastIndex, group, index) => ((group.parentId || null) === nextParentId ? index : lastIndex),
+          copy.findIndex((group) => group.id === nextParentId)
+        );
+        insertIndex = lastChildIndex + 1;
+      }
+
+      if (insertIndex < 0) insertIndex = copy.length;
+      copy.splice(insertIndex, 0, moved);
       return copy;
     });
   }
@@ -3278,12 +3323,19 @@ export default function App() {
                           <div
                             className={draggedNspdGroupId === subcategory.id ? "nspdSubgroup dragging" : "nspdSubgroup"}
                             key={subcategory.id}
-                            draggable
-                            onDragStart={() => setDraggedNspdGroupId(subcategory.id)}
+                            draggable={!subcategory.system}
+                            onDragStart={(e) => {
+                              e.stopPropagation();
+                              setDraggedNspdGroupId(subcategory.id);
+                            }}
                             onDragEnd={() => setDraggedNspdGroupId("")}
-                            onDragOver={(e) => e.preventDefault()}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
                             onDrop={(e) => {
                               e.preventDefault();
+                              e.stopPropagation();
                               moveNspdGroupByDrop(draggedNspdGroupId, subcategory.id);
                               setDraggedNspdGroupId("");
                             }}
@@ -3311,9 +3363,13 @@ export default function App() {
                             {subcategory.expanded && (
                               <div
                                 className="layers nspdGroupLayers"
-                                onDragOver={(e) => e.preventDefault()}
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                }}
                                 onDrop={(e) => {
                                   e.preventDefault();
+                                  e.stopPropagation();
                                   moveNspdLayerByDrop(draggedNspdLayerId, "", subcategory.id);
                                   setDraggedNspdLayerId("");
                                 }}
@@ -3323,11 +3379,18 @@ export default function App() {
                                     className={draggedNspdLayerId === layer.id ? "nspdCompactRow dragging" : "nspdCompactRow"}
                                     key={layer.id}
                                     draggable
-                                    onDragStart={() => setDraggedNspdLayerId(layer.id)}
+                                    onDragStart={(e) => {
+                                      e.stopPropagation();
+                                      setDraggedNspdLayerId(layer.id);
+                                    }}
                                     onDragEnd={() => setDraggedNspdLayerId("")}
-                                    onDragOver={(e) => e.preventDefault()}
+                                    onDragOver={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                    }}
                                     onDrop={(e) => {
                                       e.preventDefault();
+                                      e.stopPropagation();
                                       moveNspdLayerByDrop(draggedNspdLayerId, layer.id, subcategory.id);
                                       setDraggedNspdLayerId("");
                                     }}

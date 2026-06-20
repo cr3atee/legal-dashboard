@@ -28,21 +28,27 @@
 .dashboard-modern .cases-stats-grid > div {
   aspect-ratio: 1 / 1;
   min-height: 88px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-items: stretch;
   gap: 12px;
   padding: 14px;
 }
 
 .dashboard-modern .cases-stats-grid .stat-label {
+  align-self: start;
+  margin: 0;
   line-height: 1.25;
 }
 
 .dashboard-modern .cases-stats-grid b {
-  margin-top: auto;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
   font-size: clamp(24px, 3vw, 34px);
   line-height: 1;
+  text-align: center;
 }
 
 .dashboard-modern .cases-table-widget {

@@ -201,7 +201,15 @@ export function renderCalendarPage() {
               <button class="btn" data-calendar-form-more type="button" hidden>Подробнее</button>
             </div>
             <div class="calendar-dialog-right-actions">
-              <button class="btn danger" data-calendar-delete type="button" hidden>Удалить</button>
+              <button class="btn danger calendar-delete-icon-btn" data-calendar-delete type="button" title="Удалить событие" aria-label="Удалить событие" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M3 6h18"></path>
+                  <path d="M8 6V4h8v2"></path>
+                  <path d="M19 6l-1 14H6L5 6"></path>
+                  <path d="M10 11v5"></path>
+                  <path d="M14 11v5"></path>
+                </svg>
+              </button>
               <button class="btn primary" type="submit">Сохранить</button>
             </div>
           </div>

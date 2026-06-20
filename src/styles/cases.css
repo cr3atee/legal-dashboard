@@ -2618,6 +2618,9 @@
   vertical-align: top;
   border-bottom: 1px solid #edf2fb;
   background: #fff;
+  box-shadow:
+    inset 1px 0 0 rgba(23, 51, 117, .035),
+    inset 0 1px 0 rgba(23, 51, 117, .025);
   word-break: break-word;
 }
 
@@ -2627,6 +2630,12 @@
 
 .general-cases-table-row:hover td {
   background: #f9fbff;
+}
+
+:root[data-theme="dark"] .general-cases-table td {
+  box-shadow:
+    inset 1px 0 0 rgba(255, 255, 255, .045),
+    inset 0 1px 0 rgba(255, 255, 255, .035);
 }
 
 .general-cases-table-row .primary-cell {

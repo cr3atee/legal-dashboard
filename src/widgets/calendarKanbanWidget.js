@@ -12,9 +12,6 @@ export function renderCalendarKanbanWidget() {
 
   return `
     <div class="calendar-widget-kanban-plan" data-calendar-kanban-widget>
-      <div class="calendar-widget-kanban-head">
-        <b>Ближайшие события</b>
-      </div>
       <div class="calendar-widget-kanban-board" data-calendar-kanban-board>
         <div class="muted">Загрузка плана...</div>
       </div>

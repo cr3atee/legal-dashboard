@@ -754,7 +754,7 @@ body.dashboard-edit-mode .widget-dragbar small {
 }
 
 .calendar-widget-kanban-plan {
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 10px;
 }
 
@@ -908,7 +908,8 @@ body.dashboard-edit-mode .widget-dragbar small {
 
 .calendar-today-only-head span {
   color: #64748b;
-  font-size: 12px;
+  font-size: clamp(14px, 1.2vw, 16px);
+  font-weight: 850;
 }
 
 .calendar-today-only-head strong {
