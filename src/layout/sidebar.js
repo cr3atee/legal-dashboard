@@ -1,3 +1,5 @@
+import { canViewRoute } from '../core/permissions.js';
+
 const NAV_ITEMS = [
   ["dashboard", iconDashboard(), "Главная"],
   ["cases", iconCaseList(), "Общий перечень дел"],
@@ -7,25 +9,33 @@ const NAV_ITEMS = [
   ["schedule", iconClock(), "График заседаний"],
   ["map", iconMap(), "Карта"],
   ["emergencyFund", iconChart(), "Аварийный фонд"],
-  ["municipalRegistry", iconBuilding(), "Реестр"],
+  ["municipalRegistry", iconBuilding(), "Реестр муниципальной собственности"],
   ["meetings", iconMeeting(), "Совещания"]
 ];
+
+NAV_ITEMS.splice(3, 0, ["reports", iconChart(), "Отчеты"]);
 
 export function renderSidebar() {
   return `
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-icon">${iconScales()}</div>
+        <div class="brand-text">
+          <b>ЮрСфера</b>
+          <small>Правовая система</small>
+        </div>
       </div>
 
       <nav class="nav">
-        ${NAV_ITEMS.map(([view, icon, label]) => `
+        ${NAV_ITEMS.filter(([view]) => canViewRoute(view)).map(([view, icon, label]) => `
           <button class="nav-btn ${view === 'dashboard' ? 'active' : ''}" data-view="${view}" title="${label}">
             <span class="ico" aria-hidden="true">${icon}</span>
             <span class="label">${label}</span>
           </button>
         `).join('')}
       </nav>
+
+      <div class="sidebar-bottom" aria-hidden="true"></div>
     </aside>
   `;
 }
@@ -42,6 +52,9 @@ function iconControlledList() {
 }
 function iconShield() {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.2-2.6 8-7 10-4.4-2-7-5.8-7-10V6l7-3z"></path></svg>`;
+}
+function iconBook() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 0-3-3z"></path><path d="M5 4v16"></path><path d="M8 8h7M8 12h6"></path></svg>`;
 }
 function iconPin() {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3l7 7-3 1-4-4-1 3 3 3-7 7-2-2 7-7-3-3 1-3-4-4 1-3z"></path></svg>`;
@@ -65,5 +78,5 @@ function iconBuilding() {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"></path><path d="M6 21V7l6-4 6 4v14"></path><path d="M9 11h.01M9 15h.01M12 11h.01M12 15h.01M15 11h.01M15 15h.01"></path></svg>`;
 }
 function iconMeeting() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7a3 3 0 1 0 0-.01zM16 7a3 3 0 1 0 0-.01zM12 14a3 3 0 1 0 0-.01z"></path><path d="M5 19c.4-2 1.9-3 4-3"></path><path d="M19 19c-.4-2-1.9-3-4-3"></path><path d="M8 18c.6-2 2-3 4-3s3.4 1 4 3"></path></svg>`;
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="8" width="12" height="8" rx="2.4"></rect><path d="M9 5.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"></path><path d="M19 5.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"></path><path d="M9 19.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"></path><path d="M19 19.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"></path><path d="M9 10.5h6M9 13.5h6"></path></svg>`;
 }

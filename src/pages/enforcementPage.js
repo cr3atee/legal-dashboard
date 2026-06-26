@@ -6,9 +6,9 @@ export function renderEnforcementPage() {
           <h2>Перечень исполнительных производств</h2>
                   </div>
         <div class="cases-actions">
-          <button class="btn" data-enforcement-refresh type="button">Обновить</button>
-          <button class="btn" data-enforcement-export type="button">Экспорт таблицы</button>
-          <button class="btn" data-enforcement-archive-toggle type="button">Архив</button>
+          <button class="btn primary" data-enforcement-refresh type="button">Обновить</button>
+          <button class="btn primary" data-enforcement-export type="button">Экспорт таблицы</button>
+          <button class="btn primary" data-enforcement-archive-toggle type="button">Архив</button>
           <div class="enforcement-section-switch" aria-label="Выбор раздела исполнительных производств">
             <button class="enforcement-section-tab" data-enforcement-mode="debtor" type="button">Должники</button>
             <button class="enforcement-section-tab" data-enforcement-mode="creditor" type="button">Взыскатели</button>

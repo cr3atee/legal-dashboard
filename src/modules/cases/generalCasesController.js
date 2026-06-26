@@ -50,6 +50,7 @@ let state = {
   viewMode: loadGeneralCasesViewMode(),
   colors: loadGeneralCaseColors(),
   returnView: '',
+  reviewApprovals: [],
   archiveWizard: {
     rows: [],
     filter: 'all',
@@ -276,6 +277,12 @@ export function initGeneralCasesPage() {
       const index = Number(docExternal.dataset.generalDocumentExternalItem || 0);
       const doc = getDocumentByIndex(index);
       if (doc) openDocumentExternal(doc);
+      return;
+    }
+
+    const reviewAction = event.target.closest('[data-general-review-action]');
+    if (reviewAction) {
+      handleReviewApprovalAction(reviewAction);
       return;
     }
 
@@ -1391,17 +1398,7 @@ function renderCasesTable(rows) {
 }
 
 function renderCasesTableRow(row) {
-  const statusBadges = `
-    ${state.archived ? renderCaseStatusBadge('archive', 'Архив') : ''}
-    ${Number(row.attendance_flag) === 1 ? renderCaseStatusBadge('attendance', 'Явочное') : ''}
-    ${Number(row.attendance_hearing_missing) === 1 ? renderCaseStatusBadge('hearing-missing', 'Дата и время заседания не указаны', 'Нет даты') : ''}
-    ${Number(row.control_flag) === 1 ? renderCaseStatusBadge('control', 'Контроль') : ''}
-    ${Number(row.review_show_flag) === 1 ? renderCaseStatusBadge('review', 'Отзыв показать', 'Отзыв') : ''}
-    ${Number(row.emergency_fund_flag) === 1 ? renderCaseStatusBadge('emergency', 'Аварийный фонд', 'АФ') : ''}
-    ${Number(row.registry_flag) === 1 ? renderCaseStatusBadge('registry', 'Выморочка') : ''}
-    ${Number(row.control_flag) !== 1 && Number(row.attendance_flag) !== 1 && Number(row.review_show_flag) !== 1 && Number(row.emergency_fund_flag) !== 1 && Number(row.registry_flag) !== 1 && !state.archived ? renderCaseStatusBadge('neutral', 'Основные дела', 'Основное') : ''}
-    ${getCommentBadge(row)}
-  `;
+  const statusBadges = renderCasesTableMarkers(row);
   const statusClass = getCaseStatusClass(row);
   const statusStyle = getCaseStatusStyle(row);
 
@@ -1425,6 +1422,29 @@ function renderCasesTableRow(row) {
 
 function renderCaseStatusBadge(className, fullLabel, displayLabel = fullLabel) {
   return `<span class="case-badge ${className}" title="${escapeAttr(fullLabel)}" aria-label="${escapeAttr(fullLabel)}">${escapeHtml(displayLabel)}</span>`;
+}
+
+function renderCasesTableMarkers(row) {
+  const markers = [];
+  const add = (className, label) => {
+    markers.push(`<span class="case-table-marker ${className}" title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}" role="img" tabindex="0"></span>`);
+  };
+  if (state.archived) add('archive', 'Архив');
+  if (Number(row.attendance_flag) === 1) add('attendance', 'Явочное дело');
+  if (Number(row.attendance_hearing_missing) === 1) add('hearing-missing', 'Дата и время заседания не указаны');
+  if (Number(row.control_flag) === 1) add('control', 'Контрольное дело');
+  if (Number(row.review_show_flag) === 1) add('review', 'Отзыв показать');
+  if (Number(row.emergency_fund_flag) === 1) add('emergency', 'Аварийный фонд');
+  if (Number(row.registry_flag) === 1) add('registry', 'Выморочка');
+  if (commentSignature(row)) add(commentIsViewed(row) ? 'comment viewed' : 'comment new', commentIsViewed(row) ? 'Комментарий просмотрен' : 'Новый комментарий');
+  return markers.join('');
+}
+
+function commentIsViewed(row = {}) {
+  const comment = commentSignature(row);
+  if (!comment || !row?.id) return false;
+  const viewed = readCommentViewState()[row.id];
+  return viewed?.signature === comment && Boolean(viewed?.viewed_at);
 }
 
 function renderCaseCard(row) {
@@ -2483,7 +2503,9 @@ function openDialogCore(row = null) {
   const appealRows = parseAppeals(row?.appeals_json);
   renderAppealRows(appealRows);
   setAppealBlockVisible(Boolean(appealRows.length || row?.judicial_act_date_first));
+  state.reviewApprovals = [];
   renderDocumentsRows(parseDocuments(row?.documents_json));
+  refreshReviewApprovals(row?.id);
   if (row) markCommentViewed(row);
   ensureGeneralCaseTabs();
   switchGeneralCaseTab('info');
@@ -2554,7 +2576,8 @@ function openDialogDomFallback(row = null, cause = null) {
 
   try { renderAppealRows(parseAppeals(row?.appeals_json)); } catch (error) { console.warn('Не удалось отрисовать блок обжалования:', error); }
   try { setAppealBlockVisible(Boolean(parseAppeals(row?.appeals_json).length || row?.judicial_act_date_first)); } catch {}
-  try { renderDocumentsRows(parseDocuments(row?.documents_json)); } catch (error) { console.warn('Не удалось отрисовать документы:', error); }
+  state.reviewApprovals = [];
+  try { renderDocumentsRows(parseDocuments(row?.documents_json)); refreshReviewApprovals(row?.id); } catch (error) { console.warn('Не удалось отрисовать документы:', error); }
   try { if (row) markCommentViewed(row); } catch {}
   try { ensureGeneralCaseTabs(); } catch {}
   try { switchGeneralCaseTab('info'); } catch {}
@@ -4154,6 +4177,142 @@ async function openDocumentExternal(doc) {
     }
   }
 }
+renderDocumentsRows = function renderDocumentsRowsWithReviewApproval(rows = []) {
+  const list = document.querySelector('[data-general-documents-list]');
+  if (!list) return;
+  const docs = Array.isArray(rows) ? rows : [];
+  if (!docs.length) {
+    list.innerHTML = '<div class="empty-card">Документы пока не прикреплены</div>';
+    syncDocumentsHiddenInput();
+    return;
+  }
+  list.innerHTML = docs.map((doc, index) => {
+    const approval = getReviewApprovalForDocument(doc);
+    return `<div class="general-document-row" data-general-document-row data-document-index="${index}" data-name="${escapeAttr(doc.name || '')}" data-path="${escapeAttr(doc.path || '')}" data-type="${escapeAttr(doc.type || 'Иной документ')}" data-mime="${escapeAttr(doc.mime || '')}" data-added-at="${escapeAttr(doc.added_at || new Date().toISOString())}">
+      <div class="general-document-main">
+        <div class="general-document-icon">${documentIcon(doc)}</div>
+        <div>
+          <span class="general-document-type-badge">${escapeHtml(doc.type || 'Иной документ')}</span>
+          <b>${escapeHtml(doc.name || doc.path || 'Документ')}</b>
+          <small>${escapeHtml(doc.path || 'локальный путь недоступен')}</small>
+        </div>
+      </div>
+      <label><span>Примечание к документу</span><input data-general-document-row-note value="${escapeAttr(doc.note || '')}" placeholder="копия жалобы / доказательство отправки / судебный акт"></label>
+      <label><span>Комментарии</span><textarea data-general-document-comment rows="2">${escapeHtml(doc.comment || '')}</textarea></label>
+      <div class="general-document-row-actions">
+        <button class="btn small primary" data-general-document-open-item="${index}" type="button">Предпросмотр</button>
+        <button class="btn small" data-general-document-external-item="${index}" type="button">Открыть</button>
+        <button class="btn small danger" data-general-document-remove type="button">−</button>
+      </div>
+      ${renderReviewApprovalControls(doc, index, approval)}
+    </div>`;
+  }).join('');
+  syncDocumentsHiddenInput();
+};
+
+function getReviewApprovalForDocument(doc = {}) {
+  const path = String(doc.path || '').trim();
+  return (state.reviewApprovals || []).find(item => String(item.document_path || '').trim() === path) || null;
+}
+
+function renderReviewApprovalControls(doc = {}, index = 0, approval = null) {
+  const form = document.querySelector('[data-general-form]');
+  const hasCase = Number(form?.elements.id?.value || 0) > 0;
+  const isReviewDoc = /отзыв|review/i.test(String(`${doc.type || ''} ${doc.name || ''}`));
+  const status = approval?.status || 'draft';
+  const statusText = {
+    draft: 'Черновик',
+    pending: 'Ожидает согласования',
+    revision_required: 'Требуется доработка',
+    approved: 'Согласовано',
+    completed: 'Исполнено'
+  }[status] || status;
+  const disabled = hasCase && isReviewDoc ? '' : ' disabled';
+  const approvalId = approval?.id || '';
+  const canSend = status === 'approved' ? '' : ' disabled';
+  return `<div class="general-review-approval" data-general-review-approval>
+    <div class="general-review-approval-status">
+      <b>Согласование отзыва</b>
+      <span class="general-review-approval-pill status-${escapeAttr(status)}">${escapeHtml(statusText)}</span>
+      ${approval?.reviewer_comment ? `<small>${escapeHtml(approval.reviewer_comment)}</small>` : ''}
+    </div>
+    <div class="general-review-approval-actions">
+      <button class="btn small primary" data-general-review-action="request" data-document-index="${index}" type="button"${disabled}>Отправить на согласование</button>
+      <button class="btn small" data-general-review-action="comment" data-approval-id="${approvalId}" type="button"${approvalId ? '' : ' disabled'}>Комментарий</button>
+      <button class="btn small" data-general-review-action="revision" data-approval-id="${approvalId}" type="button"${approvalId ? '' : ' disabled'}>На доработку</button>
+      <button class="btn small primary" data-general-review-action="approve" data-approval-id="${approvalId}" type="button"${approvalId ? '' : ' disabled'}>Согласовано</button>
+      <button class="btn small" data-general-review-action="court-sent" data-approval-id="${approvalId}" type="button"${approvalId ? canSend : ' disabled'}>Отправить в суд</button>
+    </div>
+    ${!hasCase ? '<p>Сначала сохраните дело, затем отправьте документ на согласование.</p>' : ''}
+    ${hasCase && !isReviewDoc ? '<p>Согласование доступно для документов типа «Отзыв».</p>' : ''}
+  </div>`;
+}
+
+async function refreshReviewApprovals(caseId = null) {
+  const id = Number(caseId || document.querySelector('[data-general-form]')?.elements.id?.value || 0);
+  if (!id) {
+    state.reviewApprovals = [];
+    return;
+  }
+  try {
+    const response = await dbApi.getGeneralCaseReviewApprovals(id);
+    state.reviewApprovals = Array.isArray(response?.items) ? response.items : [];
+    renderDocumentsRows(collectDocumentRows());
+  } catch (error) {
+    console.warn('Не удалось загрузить согласования отзывов', error);
+  }
+}
+
+async function handleReviewApprovalAction(button) {
+  const form = document.querySelector('[data-general-form]');
+  const caseId = Number(form?.elements.id?.value || 0);
+  const action = button.dataset.generalReviewAction || '';
+  if (!caseId) {
+    alert('Сначала сохраните дело.');
+    return;
+  }
+  try {
+    if (action === 'request') {
+      const index = Number(button.dataset.documentIndex || 0);
+      const docs = collectDocumentRows();
+      const doc = docs[index];
+      if (!doc?.path) {
+        alert('Документ не найден. Прикрепите файл заново.');
+        return;
+      }
+      const comment = prompt('Комментарий руководителю:', '') || '';
+      await dbApi.requestGeneralCaseReviewApproval(caseId, {
+        document_index: index,
+        document_path: doc.path,
+        comment
+      });
+      showNotification('Отзыв отправлен на согласование');
+    } else {
+      const approvalId = Number(button.dataset.approvalId || 0);
+      if (!approvalId) return;
+      const comment = ['comment', 'revision', 'approve'].includes(action)
+        ? (prompt('Комментарий:', '') || '')
+        : '';
+      if (action === 'comment') {
+        await dbApi.commentGeneralCaseReviewApproval(caseId, approvalId, { comment });
+        showNotification('Комментарий сохранён');
+      } else if (action === 'revision') {
+        await dbApi.requestGeneralCaseReviewRevision(caseId, approvalId, { comment });
+        showNotification('Отзыв отправлен на доработку');
+      } else if (action === 'approve') {
+        await dbApi.approveGeneralCaseReview(caseId, approvalId, { comment });
+        showNotification('Отзыв согласован');
+      } else if (action === 'court-sent') {
+        await dbApi.markGeneralCaseReviewSentToCourt(caseId, approvalId, {});
+        showNotification('Статус отправки в суд отмечен как исполненный');
+      }
+    }
+    await refreshReviewApprovals(caseId);
+  } catch (error) {
+    alert('Не удалось выполнить действие согласования:\n' + error.message);
+  }
+}
+
 function openDocumentRecord(doc) { openDocumentPreview(doc); }
 
 async function loadCasePlanEntries() {

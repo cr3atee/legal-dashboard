@@ -39,6 +39,8 @@ Thumbs.db
 *.db
 *.sqlite
 *.sqlite3
+data/*.db-shm
+data/*.db-wal
 
 # Electron/Vite cache
 

@@ -7,9 +7,9 @@ export function renderEmergencyFundPage() {
           <button class="icon-button emergency-refresh-icon" data-emergency-refresh type="button" aria-label="Обновить" title="Обновить">↻</button>
         </div>
         <div class="cases-actions emergency-head-controls">
-          <button class="btn" data-emergency-upload type="button">📥 Загрузить таблицу</button>
-          <button class="btn" data-emergency-reports-open type="button">📊 Отчеты</button>
-          <button class="btn" data-emergency-archive-open type="button">📁 Архив</button>
+          <button class="btn primary" data-emergency-upload type="button">📥 Загрузить таблицу</button>
+          <button class="btn primary" data-emergency-reports-open type="button">📊 Отчеты</button>
+          <button class="btn primary" data-emergency-archive-open type="button">📁 Архив</button>
         </div>
       </div>
 

@@ -10,6 +10,9 @@ import { initEmergencyFundPage } from './modules/emergencyFund/emergencyFundCont
 import { initMunicipalRegistryPage } from './modules/municipalRegistry/municipalRegistryController.js';
 import { initMeetingsPage } from './modules/meetings/meetingsController.js';
 import { initMeetingsWorkflowUi } from './modules/meetings/meetingsWorkflowUi.js';
+import { initReportsPage } from './modules/reports/reportsController.js';
+import { initAdminUsersPage } from './modules/adminUsers/adminUsersController.js';
+import { initAdminDictionariesPage } from './modules/adminDictionaries/adminDictionariesController.js';
 import { initMapFullscreenButton } from './modules/map/mapFullscreen.js';
 import { initUtilityPanels } from './modules/utility/utilityPanelsController.js';
 import { initAuthGate, initAuthUi } from './auth/authController.js';
@@ -34,6 +37,9 @@ export function initApp() {
     initMunicipalRegistryPage();
     initMeetingsPage();
     initMeetingsWorkflowUi();
+    initReportsPage();
+    initAdminUsersPage();
+    initAdminDictionariesPage();
     initMapFullscreenButton();
     initUtilityPanels();
     initCaseNumberAutoYear();

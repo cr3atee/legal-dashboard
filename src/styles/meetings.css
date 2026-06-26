@@ -145,9 +145,9 @@
 .meetings-inner-panel,
 .meetings-form-block,
 .meetings-type-grid button {
-  border: 1px solid #dbe7f6;
+  border: 1px solid #d4dfec;
   border-radius: 24px;
-  background: #fff;
+  background: #f4f7fb;
   box-shadow: 0 14px 36px rgba(16, 42, 92, 0.08);
 }
 
@@ -179,7 +179,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: linear-gradient(180deg, #edf4ff, #e3eefc);
+  background: linear-gradient(180deg, #e9eff7, #dfe8f3);
   color: #2563eb;
 }
 
@@ -242,6 +242,14 @@
 .meetings-type-dialog-body {
   padding-left: 28px;
   padding-right: 28px;
+}
+
+.meetings-section-context,
+.meetings-panel-head,
+.meetings-table-title,
+.meetings-archive-toolbar,
+.meetings-editor-head {
+  background: #e7edf5;
 }
 
 .meetings-editor-topline {
@@ -441,6 +449,27 @@
   gap: 8px;
 }
 
+.meetings-form-grid label,
+.meetings-extra-grid label,
+.meetings-field,
+.meetings-inner-panel,
+.meetings-list-box,
+.meetings-task-row,
+.meetings-report-row,
+.meetings-selected-summary div,
+.meetings-people-panel {
+  border: 1px solid #d4dfec;
+  background: #f4f7fb;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, .045);
+}
+
+.meetings-form-grid label,
+.meetings-extra-grid label,
+.meetings-field {
+  border-radius: 18px;
+  padding: 12px;
+}
+
 .meetings-form-grid label.wide,
 .meetings-extra-grid label.wide {
   grid-column: span 2;
@@ -463,6 +492,7 @@
 .meetings-field textarea,
 .meetings-agenda-row input,
 .meetings-task-row input,
+.meetings-task-row select,
 .committee-line input,
 .meetings-report-row input,
 .meetings-selected-list > div,
@@ -513,13 +543,14 @@
   display: grid;
   align-content: start;
   gap: 10px;
-  padding-bottom: 16px;
+  border-radius: 22px;
+  padding: 16px 0;
 }
 
 .meetings-list-box {
-  border: 1px solid #e2ebf7;
+  border: 1px solid #d4dfec;
   border-radius: 18px;
-  background: #fdfefe;
+  background: #eef3f8;
   margin: 0 18px;
   padding: 14px;
   display: grid;
@@ -550,11 +581,13 @@
 
 .meetings-task-row {
   grid-template-columns: 38px minmax(0, 1fr) 140px 42px;
+  border-radius: 18px;
+  padding: 10px 12px;
 }
 
 .meetings-task-row.protocol,
 .meetings-task-header.protocol {
-  grid-template-columns: 38px minmax(240px, .95fr) minmax(280px, 1.2fr) 140px 70px !important;
+  grid-template-columns: 38px minmax(200px, .9fr) minmax(260px, 1.25fr) 128px 110px 120px 58px !important;
   align-items: start;
 }
 
@@ -663,15 +696,16 @@
 
 .meetings-people-panel {
   margin: 0 18px 8px;
-  border: 1px solid #dbe7ff;
+  border: 1px solid #d4dfec;
   border-radius: 20px;
-  background: #fbfdff;
+  background: #eef3f8;
   overflow: hidden;
 }
 
 .meetings-people-panel-head {
   padding-bottom: 12px;
-  border-bottom: 1px solid #e5eef9;
+  border-bottom: 1px solid #d4dfec;
+  background: #e7edf5;
 }
 
 .meetings-people-tree {
@@ -754,6 +788,8 @@
   gap: 10px;
   align-items: center;
   padding: 0 18px;
+  border-radius: 18px;
+  padding: 12px 18px;
 }
 
 .meetings-attachment-actions {

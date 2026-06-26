@@ -1,6 +1,8 @@
+import { canUseAdminTools, getRoleName } from '../core/permissions.js';
+
 export function renderTopbar(session = null) {
   const fullName = session?.full_name || session?.user || 'ФИО1';
-  const role = session?.is_admin ? 'Администратор' : 'Юрист';
+  const showAdminTools = canUseAdminTools(session);
 
   return `
     <header class="topbar topbar-modern">
@@ -12,6 +14,10 @@ export function renderTopbar(session = null) {
       </div>
 
       <div class="topbar-user-zone">
+        <button class="topbar-assignments-btn" data-view="calendar" type="button" title="Поручения" aria-label="Поручения">
+          ${iconAssignments()}
+        </button>
+
         <button class="topbar-notify-btn" id="openNotificationsBtn" type="button" title="Уведомления">
           ${iconBell()}
           <span class="topbar-notify-badge" hidden>0</span>
@@ -21,23 +27,32 @@ export function renderTopbar(session = null) {
           ${iconNotes()}
         </button>
 
-        <button class="topbar-theme-toggle" data-theme-toggle type="button" aria-label="Включить тёмную тему" aria-pressed="false" title="Тёмная тема">
-          <span class="topbar-theme-toggle-icon" data-theme-toggle-icon aria-hidden="true">☾</span>
-          <span class="topbar-theme-toggle-label" data-theme-toggle-label>Тёмная</span>
-        </button>
-
         <span class="topbar-divider" aria-hidden="true"></span>
 
-        <div class="topbar-profile-card" tabindex="0">
+        <div
+          class="topbar-profile-card"
+          data-profile-menu-toggle
+          tabindex="0"
+          role="button"
+          aria-haspopup="menu"
+          aria-expanded="false"
+        >
           <div class="topbar-profile-avatar">${iconUser()}</div>
           <div class="topbar-profile-text">
             <b>${escapeHtml(fullName)}</b>
-            <small>${escapeHtml(role)}</small>
+            <small>${escapeHtml(getRoleName(session))}</small>
           </div>
           <span class="topbar-profile-chevron" aria-hidden="true">${iconChevronDown()}</span>
 
-          <div class="topbar-profile-dropdown">
-            <button class="btn small" data-auth-logout type="button">Выйти</button>
+          <div class="topbar-profile-dropdown" role="menu">
+            ${showAdminTools ? `
+              <button class="btn small topbar-profile-menu-btn" data-view="admin" type="button" role="menuitem">
+                <span class="topbar-profile-menu-icon" aria-hidden="true">${iconTools()}</span>
+                <span>Панель инструментов</span>
+              </button>
+              <span class="topbar-profile-menu-separator" aria-hidden="true"></span>
+            ` : ''}
+            <button class="btn small" data-auth-logout type="button" role="menuitem">Выйти</button>
           </div>
         </div>
       </div>
@@ -63,10 +78,16 @@ function iconBell() {
 function iconNotes() {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5z"></path><path d="M16 4v4h4"></path><path d="M8 12h8M8 16h6"></path></svg>`;
 }
+function iconAssignments() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h11"></path><path d="M8 12h11"></path><path d="M8 18h11"></path><path d="M4 6h.01"></path><path d="M4 12h.01"></path><path d="M4 18h.01"></path></svg>`;
+}
 
 function iconUser() {
   return `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12zm0 2.25c-4.15 0-7.5 2.48-7.5 5.55 0 .66.54 1.2 1.2 1.2h12.6c.66 0 1.2-.54 1.2-1.2 0-3.07-3.35-5.55-7.5-5.55z"></path></svg>`;
 }
 function iconChevronDown() {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>`;
+}
+function iconTools() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-5.1 5.1a2 2 0 1 0 3 3l5.1-5.1a4 4 0 0 0 5.4-5.4l-2.5 2.5-3-3 2.5-2.5z"></path></svg>`;
 }

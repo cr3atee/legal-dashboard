@@ -137,10 +137,16 @@
   width: 42px;
   height: 42px;
   border-radius: 14px;
-  background: #eef5ff;
-  border: 1px solid #cfe0ff;
   color: #1f5eff;
-  box-shadow: 0 10px 22px rgba(31, 94, 255, .10);
+  background: #fff;
+  border: 1px solid #dbe7ff;
+  box-shadow: 0 10px 24px rgba(31, 94, 255, .09);
+  transition: transform .24s cubic-bezier(.16, 1, .3, 1), box-shadow .24s ease;
+}
+
+.registry-refresh-icon:hover {
+  transform: translateY(-2px) rotate(24deg);
+  box-shadow: 0 16px 32px rgba(31, 94, 255, .16);
 }
 .registry-review-toggle {
   display: inline-flex;
@@ -492,4 +498,3 @@
 .registry-cards-list[hidden] {
   display: none !important;
 }
-

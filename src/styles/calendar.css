@@ -1222,6 +1222,22 @@
   min-width: 0;
 }
 
+@media (min-width: 1181px) {
+  #calendar .calendar-shell,
+  #calendar:not(.calendar-expanded) .calendar-shell,
+  #calendar.calendar-expanded .calendar-shell {
+    grid-template-columns: minmax(280px, 340px) minmax(860px, 1fr) !important;
+  }
+
+  #calendar .calendar-month-panel {
+    max-width: 340px;
+  }
+
+  #calendar .calendar-collapse-toggle {
+    left: clamp(300px, 22vw, 340px) !important;
+  }
+}
+
 @media (max-width: 1180px) {
   #calendar .calendar-shell,
   #calendar:not(.calendar-expanded) .calendar-shell,

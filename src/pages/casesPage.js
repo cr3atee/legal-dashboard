@@ -6,8 +6,8 @@ export function renderCasesPage() {
           <h2>Общий перечень дел</h2>
         </div>
         <div class="cases-actions cases-actions-modern">
-          <button class="btn btn-soft" data-general-refresh type="button"><span aria-hidden="true">↻</span><span>Обновить</span></button>
-          <button class="btn btn-soft" data-general-archive-toggle type="button"><span aria-hidden="true">🗂</span><span>Архив</span></button>
+          <button class="btn primary" data-general-refresh type="button"><span aria-hidden="true">↻</span><span>Обновить</span></button>
+          <button class="btn primary" data-general-archive-toggle type="button"><span aria-hidden="true">🗂</span><span>Архив</span></button>
           <button class="btn primary btn-add-case" data-general-new onclick="if (window.__generalCasesOpenNew) window.__generalCasesOpenNew(); else document.querySelector('[data-general-dialog]')?.showModal?.(); return false;" type="button"><span aria-hidden="true">＋</span><span>Добавить дело</span></button>
         </div>
       </div>

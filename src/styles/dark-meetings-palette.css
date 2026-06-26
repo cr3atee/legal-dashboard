@@ -1,48 +1,52 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #06111a;
-  --panel: rgba(10, 28, 43, .92);
-  --line: rgba(157, 198, 228, .17);
-  --text: #eef5f9;
-  --muted: #8ea6b8;
+  --bg: #0d131c;
+  --panel: #dceef8;
+  --line: #9fc8dd;
+  --text: #142333;
+  --muted: #4a6479;
   --blue: #4388ff;
   --blue-dark: #2455cf;
-  --green: #23c7a7;
-  --orange: #ffbe55;
-  --red: #ff7182;
-  --purple: #8f79e8;
+  --green: #176345;
+  --orange: #825d00;
+  --red: #8b2638;
+  --purple: #5f4bb8;
   --navy: #07131f;
-  --surface-soft: rgba(17, 39, 58, .86);
-  --surface-blue: rgba(25, 52, 73, .82);
-  --line-strong: rgba(157, 198, 228, .30);
-  --subtle: #6f8799;
-  --primary-soft: rgba(67, 136, 255, .13);
-  --cyan: #2bc7dc;
-  --shadow: 0 12px 36px rgba(0, 0, 0, .20);
-  --shadow-md: 0 24px 58px rgba(0, 0, 0, .28);
-  --shadow-lg: 0 32px 90px rgba(0, 0, 0, .38);
+  --surface-soft: #cfe7f4;
+  --surface-blue: #bddbea;
+  --surface-hover: #eaf6fc;
+  --surface-active: #b5d5e6;
+  --line-strong: #78aec9;
+  --subtle: #6b8294;
+  --primary-soft: #d6ebff;
+  --cyan: #2b7399;
+  --shadow: 0 8px 24px rgba(0, 0, 0, .16);
+  --shadow-md: 0 16px 40px rgba(0, 0, 0, .22);
+  --shadow-lg: 0 32px 90px rgba(0, 0, 0, .34);
   --app-bg: var(--bg);
   --sidebar-bg: #07131f;
-  --header-bg: rgba(10, 28, 43, .94);
-  --card-bg: rgba(10, 28, 43, .92);
-  --elevated-bg: rgba(17, 39, 58, .90);
-  --input-bg: rgba(7, 21, 33, .88);
-  --modal-bg: rgba(10, 28, 43, .98);
+  --header-bg: #111823;
+  --card-bg: var(--panel);
+  --elevated-bg: #eaf6fc;
+  --input-bg: rgba(255, 255, 255, .68);
+  --modal-bg: #dceef8;
   --text-primary: var(--text);
-  --text-secondary: #a6b9c7;
-  --text-muted: #7890a2;
-  --text-placeholder: #60798c;
-  --text-disabled: #657d8f;
+  --text-secondary: #4a6479;
+  --text-muted: #6b8294;
+  --text-placeholder: #6f8798;
+  --text-disabled: #7a8d9d;
+  --text-on-dark: #e9f2f8;
+  --text-on-dark-muted: #91a4b6;
   --border-color: var(--line);
-  --divider-color: rgba(157, 198, 228, .12);
-  --hover-bg: rgba(25, 52, 73, .90);
-  --active-bg: rgba(67, 136, 255, .18);
-  --selected-bg: rgba(67, 136, 255, .14);
-  --disabled-bg: rgba(20, 38, 52, .86);
+  --divider-color: rgba(103, 151, 177, .42);
+  --hover-bg: var(--surface-hover);
+  --active-bg: var(--surface-active);
+  --selected-bg: var(--primary-soft);
+  --disabled-bg: #c8dae5;
   --overlay-bg: rgba(3, 10, 18, .70);
   --focus-ring: rgba(67, 136, 255, .20);
-  --icon-primary: #dbe8f1;
-  --icon-muted: #91a7b8;
+  --icon-primary: #275f80;
+  --icon-muted: #527389;
 }
 
 :root[data-theme="dark"] body {
@@ -58,7 +62,7 @@
 }
 
 :root[data-theme="dark"] .sidebar {
-  color: var(--text) !important;
+  color: var(--text-on-dark) !important;
   background:
     radial-gradient(circle at 20% 0, rgba(43, 199, 220, .11), transparent 28%),
     linear-gradient(180deg, #0a1c2b 0%, #07131f 100%) !important;
@@ -71,7 +75,7 @@
 }
 
 :root[data-theme="dark"] :is(.topbar, .topbar-modern) {
-  color: var(--text) !important;
+  color: var(--text-on-dark) !important;
   background:
     radial-gradient(circle at 88% 16%, rgba(43, 199, 220, .10), transparent 28%),
     linear-gradient(145deg, rgba(255, 255, 255, .035), transparent 45%),
@@ -117,7 +121,7 @@
 ) {
   color: var(--text) !important;
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, .026), transparent 46%),
+    linear-gradient(145deg, rgba(255, 255, 255, .22), transparent 46%),
     var(--panel) !important;
   border-color: var(--line) !important;
   box-shadow: var(--shadow) !important;
@@ -145,7 +149,7 @@
   .meetings-archive-status span
 ) {
   color: var(--text) !important;
-  background: var(--surface-soft) !important;
+  background: linear-gradient(145deg, var(--surface-hover), var(--surface-soft)) !important;
   border-color: var(--line) !important;
 }
 
@@ -191,7 +195,7 @@
   .meetings-dialog-back
 ) {
   color: var(--text) !important;
-  background: var(--surface-soft) !important;
+  background: rgba(255, 255, 255, .56) !important;
   border-color: var(--line) !important;
   box-shadow: none !important;
 }
@@ -208,8 +212,8 @@
   .meetings-inline-back,
   .meetings-dialog-back
 ):hover {
-  color: #fff !important;
-  background: var(--surface-blue) !important;
+  color: var(--text) !important;
+  background: var(--surface-hover) !important;
   border-color: var(--line-strong) !important;
 }
 
@@ -232,7 +236,7 @@
 
 :root[data-theme="dark"] th {
   color: var(--muted) !important;
-  background: var(--surface-soft) !important;
+  background: var(--surface-blue) !important;
   border-color: var(--line) !important;
 }
 
@@ -244,15 +248,35 @@
 
 :root[data-theme="dark"] tbody tr:hover td,
 :root[data-theme="dark"] tr.selected td {
-  background: var(--surface-blue) !important;
+  background: var(--surface-hover) !important;
 }
 
-:root[data-theme="dark"] :is(h1, h2, h3, h4, h5, h6, .page-head h2, .topbar-title-text h1) {
+:root[data-theme="dark"] :is(h1, h2, h3, h4, h5, h6) {
   color: var(--text) !important;
+}
+
+:root[data-theme="dark"] :is(.page-head h2, .topbar-title-text h1, .topbar h1) {
+  color: var(--text-on-dark) !important;
+}
+
+:root[data-theme="dark"] :is(.topbar p, .topbar-profile-text b) {
+  color: var(--text-on-dark) !important;
+}
+
+:root[data-theme="dark"] .topbar-profile-text small {
+  color: var(--text-on-dark-muted) !important;
 }
 
 :root[data-theme="dark"] :is(.page-head p, .topbar p, .muted, small, .empty-cell) {
   color: var(--muted) !important;
+}
+
+:root[data-theme="dark"] .page-head p {
+  color: var(--text-on-dark-muted) !important;
+}
+
+:root[data-theme="dark"] :is(.topbar p, .topbar-profile-text small) {
+  color: var(--text-on-dark-muted) !important;
 }
 
 :root[data-theme="dark"] .meetings-view {
@@ -296,4 +320,319 @@
 :root[data-theme="dark"] .modal::backdrop {
   background: rgba(3, 10, 18, .70) !important;
   backdrop-filter: blur(6px);
+}
+
+/* Targeted contrast fixes for dark-theme work screens. */
+:root[data-theme="dark"] :is(
+  #cases,
+  #controlledCases,
+  #enforcement,
+  #schedule,
+  #emergencyFund,
+  #municipalRegistry
+) .search-field-wrap .search-input {
+  color: #10233f !important;
+  background: #eaf2fb !important;
+  border-color: #a9b9cd !important;
+  caret-color: #1f5eff !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .72) !important;
+}
+
+:root[data-theme="dark"] :is(
+  #cases,
+  #controlledCases,
+  #enforcement,
+  #schedule,
+  #emergencyFund,
+  #municipalRegistry
+) .search-field-wrap .search-input::placeholder {
+  color: #52677f !important;
+  opacity: 1 !important;
+}
+
+:root[data-theme="dark"] :is(
+  #cases,
+  #controlledCases,
+  #enforcement,
+  #schedule,
+  #emergencyFund,
+  #municipalRegistry
+) .search-field-wrap .search-input:focus {
+  color: #0f2138 !important;
+  background: #f8fbff !important;
+  border-color: #3d73f0 !important;
+  box-shadow: 0 0 0 4px rgba(61, 115, 240, .22), inset 0 1px 0 rgba(255, 255, 255, .88) !important;
+}
+
+:root[data-theme="dark"] :is(
+  #cases,
+  #controlledCases,
+  #enforcement,
+  #schedule,
+  #emergencyFund,
+  #municipalRegistry
+) .search-field-wrap .search-field-icon {
+  color: #334d68 !important;
+  opacity: .82 !important;
+}
+
+:root[data-theme="dark"] #cases .general-case-viewbar-caption span {
+  color: #f2f7ff !important;
+}
+
+:root[data-theme="dark"] #cases .general-case-viewbar-caption small {
+  color: #c6d7ea !important;
+}
+
+:where(
+  #cases .case-form-flags-inline .check-row input[type="checkbox"],
+  #emergencyFund .review-ready-check input[type="checkbox"],
+  #meetings.meetings-view input[type="checkbox"]
+) {
+  -webkit-appearance: none;
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 2px solid #aeb8c5;
+  border-radius: 5px;
+  background: #fff;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+
+:where(
+  #cases .case-form-flags-inline .check-row input[type="checkbox"],
+  #emergencyFund .review-ready-check input[type="checkbox"],
+  #meetings.meetings-view input[type="checkbox"]
+)::before {
+  content: "";
+  width: 9px;
+  height: 5px;
+  border: solid #fff;
+  border-width: 0 0 2px 2px;
+  transform: translateY(-1px) rotate(-45deg) scale(0);
+  transform-origin: center;
+  transition: transform .14s ease;
+}
+
+:where(
+  #cases .case-form-flags-inline .check-row input[type="checkbox"],
+  #emergencyFund .review-ready-check input[type="checkbox"],
+  #meetings.meetings-view input[type="checkbox"]
+):checked {
+  border-color: #2455cf;
+  background: #2f6fe8;
+}
+
+:where(
+  #cases .case-form-flags-inline .check-row input[type="checkbox"],
+  #emergencyFund .review-ready-check input[type="checkbox"],
+  #meetings.meetings-view input[type="checkbox"]
+):checked::before {
+  transform: translateY(-1px) rotate(-45deg) scale(1);
+}
+
+#calendar .calendar-task-types input[type="radio"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 2px solid #aeb8c5;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+
+#calendar .calendar-task-types input[type="radio"]:checked {
+  border-color: #2455cf;
+  background: #2f6fe8;
+  box-shadow: inset 0 0 0 4px #fff;
+}
+
+#calendar .calendar-event-scope input:not(:checked) + span {
+  color: #334155;
+  background: #fff;
+  border-color: #aeb8c5;
+}
+
+#calendar .calendar-event-scope input:focus-visible + span {
+  outline: 3px solid rgba(47, 111, 232, .35);
+  outline-offset: 2px;
+}
+
+:where(
+  #cases .case-form-flags-inline .check-row input[type="checkbox"],
+  #emergencyFund .review-ready-check input[type="checkbox"],
+  #meetings.meetings-view input[type="checkbox"],
+  #calendar .calendar-task-types input[type="radio"]
+):focus-visible {
+  outline: 3px solid rgba(47, 111, 232, .35);
+  outline-offset: 2px;
+}
+
+:where(
+  #cases .case-form-flags-inline .check-row input[type="checkbox"],
+  #emergencyFund .review-ready-check input[type="checkbox"],
+  #meetings.meetings-view input[type="checkbox"],
+  #calendar .calendar-task-types input[type="radio"]
+):disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+#calendar .calendar-refresh-icon {
+  color: #fff !important;
+  background: linear-gradient(135deg, #2f6fe8, #2455cf) !important;
+  border-color: rgba(131, 180, 255, .38) !important;
+  box-shadow: 0 14px 30px rgba(22, 78, 194, .22) !important;
+}
+
+#calendar .calendar-refresh-icon:hover {
+  transform: translateY(-2px) rotate(24deg);
+}
+
+#calendar .calendar-privacy-hint {
+  color: #23415f !important;
+  background: #e8f3ff !important;
+  border: 1px solid #bfd7f5 !important;
+}
+
+:root[data-theme="dark"] #calendar [data-calendar-dialog-title],
+:root[data-theme="dark"] #schedule .schedule-date-dialog-head h3 {
+  color: #f7fbff !important;
+}
+
+#meetings :is(
+  .meetings-main-head h2,
+  .meetings-archive-head h3,
+  .meetings-table-title h3,
+  .meetings-editor-head h3,
+  .meetings-type-dialog-body h3,
+  .meetings-block-head h4,
+  .meetings-panel-head h4,
+  .meetings-people-panel-head strong
+) {
+  color: #173b68 !important;
+  font-weight: 760 !important;
+}
+
+#meetings .meetings-main-head h2 {
+  font-weight: 780 !important;
+}
+
+#meetings :is(
+  .meetings-main-head p,
+  .meetings-archive-head p,
+  .meetings-table-title p,
+  .meetings-editor-head p,
+  .meetings-block-head p,
+  .meetings-panel-head p
+) {
+  color: #506987 !important;
+}
+
+:root[data-theme="dark"] #meetings :is(
+  .meetings-main-head h2,
+  .meetings-archive-head h3,
+  .meetings-table-title h3,
+  .meetings-editor-head h3,
+  .meetings-type-dialog-body h3,
+  .meetings-block-head h4,
+  .meetings-panel-head h4,
+  .meetings-people-panel-head strong
+) {
+  color: #dceaff !important;
+  font-weight: 740 !important;
+}
+
+:root[data-theme="dark"] #meetings :is(
+  .meetings-main-head p,
+  .meetings-archive-head p,
+  .meetings-table-title p,
+  .meetings-editor-head p,
+  .meetings-block-head p,
+  .meetings-panel-head p
+) {
+  color: #bfcee2 !important;
+}
+
+#meetings .meetings-selected-list > div {
+  scrollbar-color: #8fa8c5 #edf4fb;
+  scrollbar-width: thin;
+}
+
+#meetings .meetings-selected-list > div::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+#meetings .meetings-selected-list > div::-webkit-scrollbar-track {
+  background: #edf4fb;
+  border-radius: 999px;
+}
+
+#meetings .meetings-selected-list > div::-webkit-scrollbar-thumb {
+  background: #8fa8c5;
+  border: 2px solid #edf4fb;
+  border-radius: 999px;
+}
+
+#meetings .meetings-selected-list > div::-webkit-scrollbar-thumb:hover {
+  background: #6f89aa;
+}
+
+:root[data-theme="dark"] #meetings .meetings-selected-list > div {
+  scrollbar-color: #9fb7d4 #e3edf8;
+}
+
+:root[data-theme="dark"] #meetings .meetings-selected-list > div::-webkit-scrollbar-track {
+  background: #e3edf8;
+}
+
+:root[data-theme="dark"] #meetings .meetings-selected-list > div::-webkit-scrollbar-thumb {
+  background: #9fb7d4;
+  border-color: #e3edf8;
+}
+
+.topbar-modern :is(
+  .topbar-notify-btn,
+  .topbar-note-btn,
+  .topbar-theme-toggle,
+  .topbar-theme-toggle-icon,
+  .topbar-theme-toggle-label
+) {
+  color: #12275e !important;
+}
+
+:root[data-theme="dark"] .topbar-modern :is(
+  .topbar-notify-btn,
+  .topbar-note-btn,
+  .topbar-theme-toggle,
+  .topbar-theme-toggle-icon,
+  .topbar-theme-toggle-label
+) {
+  color: var(--text) !important;
+}
+
+#cases [data-general-refresh],
+#cases [data-general-archive-toggle] {
+  color: #0f2138 !important;
+  background: linear-gradient(180deg, #c9cfd5, #aeb5bc) !important;
+  border-color: #b8c2cc !important;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, .16) !important;
+}
+
+#cases [data-general-refresh]:hover,
+#cases [data-general-archive-toggle]:hover {
+  color: #0f2138 !important;
+  background: linear-gradient(180deg, #d8dde2, #b8c0c8) !important;
+  border-color: #c5ced8 !important;
 }

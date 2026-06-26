@@ -6,9 +6,9 @@ export function renderControlledCasesPage() {
           <h2>Перечень контрольных дел</h2>
         </div>
         <div class="cases-actions">
-          <button class="btn" data-controlled-refresh type="button">Обновить</button>
-          <button class="btn" data-controlled-full-table type="button">Открыть таблицу</button>
-          <button class="btn" data-controlled-archive-toggle type="button">Архив</button>
+          <button class="btn primary" data-controlled-refresh type="button">Обновить</button>
+          <button class="btn primary" data-controlled-full-table type="button">Открыть таблицу</button>
+          <button class="btn primary" data-controlled-archive-toggle type="button">Архив</button>
         </div>
       </div>
 
@@ -42,6 +42,7 @@ export function renderControlledCasesPage() {
               <h3 data-controlled-form-title>Новое контрольное дело</h3>
               <div class="controlled-current-id" data-controlled-current-id></div>
             </div>
+            <button class="btn small primary controlled-back-btn" data-controlled-back type="button" hidden>Назад</button>
             <button class="btn small primary editor-toggle" data-controlled-open type="button" title="Показать/скрыть карточку">＋</button>
           </div>
 

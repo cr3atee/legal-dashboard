@@ -108,6 +108,8 @@
 
 /* ===== Topbar redesign ===== */
 .topbar-modern {
+  position: relative;
+  z-index: 3000;
   min-height: 92px !important;
   padding: 18px 28px !important;
   border-radius: 26px !important;
@@ -199,6 +201,12 @@
   padding: 8px 2px 8px 10px;
   border-radius: 18px;
   outline: none;
+  cursor: pointer;
+  z-index: 3001;
+}
+
+.topbar-profile-card:focus-visible {
+  box-shadow: 0 0 0 4px rgba(31, 94, 255, .12);
 }
 
 .topbar-profile-avatar {
@@ -247,11 +255,10 @@
   pointer-events: none;
   transform: translateY(8px);
   transition: opacity .16s ease, transform .16s ease;
-  z-index: 40;
+  z-index: 10000;
 }
 
-.topbar-profile-card:hover .topbar-profile-dropdown,
-.topbar-profile-card:focus-within .topbar-profile-dropdown {
+.topbar-profile-card.is-open .topbar-profile-dropdown {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);
@@ -260,6 +267,40 @@
 .topbar-profile-dropdown .btn.small {
   width: 100%;
   justify-content: center;
+}
+
+.topbar-profile-dropdown .topbar-profile-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topbar-profile-menu-icon {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+}
+
+.topbar-profile-menu-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.topbar-profile-menu-separator {
+  display: block;
+  height: 1px;
+  background: #e5ebfb;
+}
+
+:root[data-theme="dark"] .topbar-profile-dropdown {
+  background: var(--elevated-bg);
+  border-color: var(--line);
+  box-shadow: var(--shadow-md);
+}
+
+:root[data-theme="dark"] .topbar-profile-menu-separator {
+  background: var(--line);
 }
 
 @media (max-width: 960px) {
@@ -274,6 +315,7 @@
 
 
 /* ADJUST_AFTER_REFERENCE: заметки снова отдельной видимой кнопкой, шрифт легче */
+.topbar-assignments-btn,
 .topbar-note-btn,
 .topbar-notify-btn {
   width: 46px;
@@ -329,6 +371,7 @@
   line-height: 1;
 }
 
+.topbar-assignments-btn svg,
 .topbar-note-btn svg,
 .topbar-notify-btn svg {
   width: 22px;

@@ -1398,6 +1398,7 @@ async function exportWeeklyPlan() {
     const tasks = rows.filter(task => getTaskDate(task) === iso);
     days.push({ iso, tasks });
   }
+  const meetingSummary = getMeetingAssignmentWeekSummary(rows);
 
   const html = `
 <!DOCTYPE html>
@@ -1417,6 +1418,11 @@ async function exportWeeklyPlan() {
 <body>
 <div class="Section1">
   <h1>План работы: ${escapeHtml(state.selectedUser)}<br>${formatRuDate(start)} — ${formatRuDate(end)}</h1>
+  <h2>Поручения из совещаний</h2>
+  <table>
+    <thead><tr><th>Выполнено в срок</th><th>Просрочено</th><th>В работе</th></tr></thead>
+    <tbody><tr><td>${meetingSummary.doneOnTime}</td><td>${meetingSummary.overdue}</td><td>${meetingSummary.inProgress}</td></tr></tbody>
+  </table>
   ${days.map(day => `
     <h2>${formatRuDate(day.iso)}</h2>
     <table>
@@ -1446,6 +1452,26 @@ async function exportWeeklyPlan() {
   a.remove();
   URL.revokeObjectURL(url);
   showNotification('План на неделю сформирован');
+}
+
+function getMeetingAssignmentWeekSummary(rows = []) {
+  const today = toIsoDate(new Date());
+  return rows
+    .filter(task => Number(task.meeting_id || 0) > 0 && getTaskType(task) === TASK_TYPE_ASSIGNMENT)
+    .reduce((summary, task) => {
+      const deadline = getTaskDate(task);
+      const done = Number(task.done || 0) === 1;
+      if (done) {
+        const completedAt = String(task.updated_at || '').slice(0, 10);
+        if (!deadline || !completedAt || completedAt <= deadline) summary.doneOnTime += 1;
+        else summary.overdue += 1;
+      } else if (deadline && deadline < today) {
+        summary.overdue += 1;
+      } else {
+        summary.inProgress += 1;
+      }
+      return summary;
+    }, { doneOnTime: 0, overdue: 0, inProgress: 0 });
 }
 
 function getVisibleDateRange() {

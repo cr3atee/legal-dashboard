@@ -797,15 +797,18 @@
 
 .enforcement-editor-card.is-open {
   position: fixed;
-  left: clamp(88px, 7vw, 128px);
-  right: 22px;
-  bottom: 0;
+  left: 50%;
+  top: 50%;
+  right: auto;
+  bottom: auto;
   z-index: 90;
-  max-height: min(820px, calc(100vh - 42px));
+  width: min(1180px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
   overflow: auto;
-  border-radius: 30px 30px 0 0;
-  box-shadow: 0 -22px 80px rgba(15, 23, 42, .28);
-  animation: legalSheetSlideUp .30s cubic-bezier(.32, .72, 0, 1);
+  border-radius: 30px;
+  box-shadow: 0 30px 90px rgba(15, 23, 42, .34);
+  transform: translate(-50%, -50%);
+  animation: enforcementDialogIn .26s cubic-bezier(.32, .72, 0, 1);
 }
 
 .enforcement-editor-card.is-open::before {
@@ -835,6 +838,11 @@
   100% { transform: translateY(0) scale(1); opacity: 1; }
 }
 
+@keyframes enforcementDialogIn {
+  0% { transform: translate(-50%, calc(-50% + 18px)) scale(.985); opacity: .18; filter: blur(2px); }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; filter: blur(0); }
+}
+
 @keyframes legalCardOpenMacLike {
   0% { transform: translateY(0) scale(1); }
   55% { transform: translateY(-6px) scale(1.018); }
@@ -857,9 +865,13 @@
 
 @media (max-width: 880px) {
   .enforcement-editor-card.is-open {
-    left: 10px;
-    right: 10px;
-    max-height: calc(100vh - 24px);
+    left: 50%;
+    top: 50%;
+    right: auto;
+    bottom: auto;
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 20px);
+    transform: translate(-50%, -50%);
   }
 
   .enforcement-filters-row {

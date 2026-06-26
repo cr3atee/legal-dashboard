@@ -67,14 +67,42 @@ async function requestBlob(path, options = {}) {
   return response.blob();
 }
 
+function reportsQuery(params = {}) {
+  const query = new URLSearchParams();
+  if (params.mode) query.set('mode', params.mode);
+  if (params.year) query.set('year', params.year);
+  if (params.quarter) query.set('quarter', params.quarter);
+  if (params.report_date) query.set('report_date', params.report_date);
+  if (params.scope) query.set('scope', params.scope);
+  if (params.all) query.set('all', params.all);
+  if (Array.isArray(params.user_ids) && params.user_ids.length) query.set('user_ids', params.user_ids.join(','));
+  if (params.user_id) query.set('user_id', params.user_id);
+  const value = query.toString();
+  return value ? `?${value}` : '';
+}
+
 export const dbApi = {
   health: () => request('/api/health'),
+  getCurrentSession: () => request('/api/auth/me'),
   login: password => request('/api/auth/login', { method: 'POST', body: JSON.stringify({ password }) }),
   logout: () => request('/api/auth/logout', { method: 'POST', body: '{}' }),
   getOptions: category => request(`/api/options?category=${encodeURIComponent(category)}`),
   getUsers: () => request('/api/users'),
+  getAdminUsers: () => request('/api/admin/users'),
+  createAdminUser: data => request('/api/admin/users', { method: 'POST', body: JSON.stringify(data) }),
+  updateAdminUser: (id, data) => request(`/api/admin/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  getAdminOptions: () => request('/api/admin/options'),
+  saveAdminOption: data => request('/api/admin/options', { method: 'POST', body: JSON.stringify(data) }),
+  deleteAdminOption: id => request(`/api/admin/options/${id}`, { method: 'DELETE' }),
   getNotifications: () => request('/api/notifications'),
   markNotificationsRead: keys => request('/api/notifications/read', { method: 'POST', body: JSON.stringify({ keys }) }),
+
+  getReportsSummary: (params = {}) => request(`/api/reports/summary${reportsQuery(params)}`),
+  getReportUsers: () => request('/api/reports/users'),
+  getQuarterlyReports: (params = {}) => request(`/api/reports/quarterly${reportsQuery(params)}`),
+  uploadQuarterlyReport: data => request('/api/reports/quarterly', { method: 'POST', body: JSON.stringify(data) }),
+  downloadQuarterlyReport: id => requestBlob(`/api/reports/quarterly/${id}/download`),
+  openQuarterlyReport: id => request(`/api/reports/quarterly/${id}/open`, { method: 'POST', body: '{}' }),
 
   getGeneralCases: ({ search = '' } = {}) => request(`/api/general-cases${search ? `?search=${encodeURIComponent(search)}` : ''}`),
   getArchivedGeneralCases: ({ search = '' } = {}) => request(`/api/general-cases?archived=1${search ? `&search=${encodeURIComponent(search)}` : ''}`),
@@ -83,6 +111,12 @@ export const dbApi = {
   uploadGeneralCaseDocument: data => request('/api/general-case-files', { method: 'POST', body: JSON.stringify(data) }),
   previewGeneralCaseDocument: filePath => requestBlob(`/api/general-case-files/preview?path=${encodeURIComponent(filePath)}`),
   openGeneralCaseDocument: filePath => request('/api/general-case-files/open', { method: 'POST', body: JSON.stringify({ path: filePath }) }),
+  getGeneralCaseReviewApprovals: id => request(`/api/general-cases/${id}/review-approval`),
+  requestGeneralCaseReviewApproval: (id, data) => request(`/api/general-cases/${id}/review-approval/request`, { method: 'POST', body: JSON.stringify(data) }),
+  commentGeneralCaseReviewApproval: (caseId, approvalId, data) => request(`/api/general-cases/${caseId}/review-approval/${approvalId}/comment`, { method: 'POST', body: JSON.stringify(data) }),
+  requestGeneralCaseReviewRevision: (caseId, approvalId, data) => request(`/api/general-cases/${caseId}/review-approval/${approvalId}/revision`, { method: 'POST', body: JSON.stringify(data) }),
+  approveGeneralCaseReview: (caseId, approvalId, data) => request(`/api/general-cases/${caseId}/review-approval/${approvalId}/approve`, { method: 'POST', body: JSON.stringify(data) }),
+  markGeneralCaseReviewSentToCourt: (caseId, approvalId, data) => request(`/api/general-cases/${caseId}/review-approval/${approvalId}/court-sent`, { method: 'POST', body: JSON.stringify(data) }),
   archiveGeneralCase: id => request(`/api/general-cases/${id}`, { method: 'DELETE' }),
   restoreGeneralCase: archiveId => request(`/api/general-cases/archive/${archiveId}/restore`, { method: 'POST' }),
   createControlledFromGeneral: (id, history_text = '') => request(`/api/general-cases/${id}/controlled-link`, { method: 'POST', body: JSON.stringify({ history_text }) }),

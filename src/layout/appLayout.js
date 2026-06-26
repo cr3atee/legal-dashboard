@@ -13,6 +13,10 @@ import { renderEmergencyFundPage } from '../pages/emergencyFundPage.js';
 import { renderMunicipalRegistryPage } from '../pages/municipalRegistryPage.js';
 import { renderMeetingsPage } from '../pages/meetingsPage.js';
 import { renderSettingsPage } from '../pages/settingsPage.js';
+import { renderReportsPage } from '../pages/reportsPage.js';
+import { renderAdminToolsPage } from '../pages/adminToolsPage.js';
+import { renderAdminUsersPage } from '../pages/adminUsersPage.js';
+import { renderAdminDictionariesPage } from '../pages/adminDictionariesPage.js';
 
 export function renderAppLayout(session = null) {
   return `
@@ -26,6 +30,7 @@ export function renderAppLayout(session = null) {
           ${renderDashboardPage()}
           ${renderCasesPage()}
           ${renderControlledCasesPage()}
+          ${renderReportsPage()}
           ${renderEnforcementPage()}
           ${renderCalendarPage()}
           ${renderSchedulePage()}
@@ -33,6 +38,9 @@ export function renderAppLayout(session = null) {
           ${renderEmergencyFundPage()}
           ${renderMunicipalRegistryPage()}
           ${renderMeetingsPage()}
+          ${renderAdminToolsPage(session)}
+          ${renderAdminUsersPage()}
+          ${renderAdminDictionariesPage()}
           ${renderSettingsPage()}
         </div>
       </main>

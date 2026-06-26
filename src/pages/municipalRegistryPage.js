@@ -4,10 +4,10 @@ export function renderMunicipalRegistryPage() {
       <div class="page-head cases-head registry-head">
         <div class="registry-title-row">
           <h2>Реестр муниципальной собственности</h2>
-          <button class="icon-button registry-refresh-icon" data-registry-refresh type="button" title="Обновить реестр" aria-label="Обновить реестр">🔄</button>
+          <button class="icon-button registry-refresh-icon" data-registry-refresh type="button" title="Обновить реестр" aria-label="Обновить реестр">↻</button>
         </div>
         <div class="cases-actions">
-          <button class="btn" data-registry-archive-open type="button">📁 Архив</button>
+          <button class="btn primary" data-registry-archive-open type="button">📁 Архив</button>
         </div>
       </div>
 

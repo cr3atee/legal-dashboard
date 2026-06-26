@@ -25,12 +25,14 @@ let state = {
   selectedId: null,
   search: '',
   agendaRows: [''],
-  taskRows: [{ committee: '', task: '', date: '', done: false }],
+  taskRows: [{ committee: '', task: '', date: '', priority: '', general_case_id: '', done: false }],
   docType: 'participants',
   people: { msu_ip: [], invited_ip: [] },
   peopleLoaded: { msu_ip: false, invited_ip: false },
   selectedPeople: { msu_ip: new Set(), invited_ip: new Set() },
   expandedPeople: { msu_ip: new Set(), invited_ip: new Set() },
+  generalCases: [],
+  generalCasesLoaded: false,
   isFilling: false,
   flow: 'landing'
 };
@@ -183,7 +185,7 @@ export function initMeetingsPage() {
     if (event.target.closest('[data-meetings-agenda-add]')) { state.agendaRows.push(''); renderAgendaRows(); }
     if (event.target.closest('[data-meetings-agenda-remove]')) { if (state.agendaRows.length > 1) state.agendaRows.pop(); renderAgendaRows(); }
 
-    if (event.target.closest('[data-meetings-task-add]')) { state.taskRows.push({ committee: '', committees: [''], task: '', date: '', done: false }); renderTaskRows(); }
+    if (event.target.closest('[data-meetings-task-add]')) { state.taskRows.push(createEmptyProtocolTask()); renderTaskRows(); }
     if (event.target.closest('[data-meetings-task-remove]')) { if (state.taskRows.length > 1) state.taskRows.pop(); renderTaskRows(); }
 
     const openRowBtn = event.target.closest('[data-meetings-open-row]');
@@ -321,7 +323,7 @@ function resetMeetingsHome(withPreloader = false) {
     state.expandedPeople.msu_ip = new Set();
     state.expandedPeople.invited_ip = new Set();
     state.agendaRows = [''];
-    state.taskRows = [{ committee: '', committees: [''], task: '', date: '', done: false }];
+    state.taskRows = [createEmptyProtocolTask()];
     setEditorOpen(false);
     setArchiveOpen(false);
     document.querySelectorAll('[data-meetings-people-panel]').forEach(panel => panel.hidden = true);
@@ -379,7 +381,7 @@ function chooseMeetingType(type) {
   closeMeetingTypeDialog();
   clearForm(false);
   if (type === 'protocol') {
-    state.taskRows = [{ committee: '', committees: [''], task: '', date: '', done: false }];
+    state.taskRows = [createEmptyProtocolTask()];
   }
   setDocType(type || 'participants');
   openEditor();
@@ -716,7 +718,7 @@ function clearForm(keepOpen = true) {
   state.selectedPeople.msu_ip = new Set();
   state.selectedPeople.invited_ip = new Set();
   state.agendaRows = [''];
-  state.taskRows = [{ committee: '', committees: [''], task: '', date: '', done: false }];
+  state.taskRows = [createEmptyProtocolTask()];
 
   setDocType('participants');
   renderAgendaRows();
@@ -748,6 +750,9 @@ function renderAgendaRows() {
   `).join('');
 }
 
+function createEmptyProtocolTask() {
+  return { committee: '', committees: [''], task: '', date: '', priority: '', general_case_id: '', done: false };
+}
 
 function renderTaskRows() {
   const box = document.querySelector('[data-meetings-task-rows]');
@@ -759,17 +764,19 @@ function renderTaskRows() {
   }
 
   if (state.docType === 'agenda') refreshAgendaParticipantRows(false);
-  if (!state.taskRows.length) state.taskRows = [{ committee: '', committees: [''], task: '', date: '', done: false }];
+  if (!state.taskRows.length) state.taskRows = [createEmptyProtocolTask()];
 
   const protocolMode = state.docType === 'protocol';
   const agendaMode = state.docType === 'agenda';
 
   if (protocolMode && state.taskRows.some(row => looksLikeAgendaParticipantRow(row))) {
-    state.taskRows = [{ committee: '', committees: [''], task: '', date: '', done: false }];
+    state.taskRows = [createEmptyProtocolTask()];
   }
 
+  const caseOptions = state.generalCases.map(row => `<option value="${escapeAttr(row.id)}">${escapeHtml(formatMeetingCaseOption(row))}</option>`).join('');
+
   box.innerHTML = `
-    ${protocolMode ? '<div class="meetings-task-header protocol"><span></span><span>Комитет</span><span>Поручение</span><span>Срок</span><span>✓</span></div>' : ''}
+    ${protocolMode ? '<datalist id="meetingsGeneralCasesList">' + caseOptions + '</datalist><div class="meetings-task-header protocol"><span></span><span>Кому</span><span>Поручение</span><span>Срок</span><span>Дело</span><span>Приоритет</span><span>✓</span></div>' : ''}
     ${agendaMode ? '<div class="meetings-task-header agenda-speakers"><span></span><span>ФИО</span><span>Должность</span><span>№</span><span>Информирует</span></div>' : ''}
     ${state.taskRows.map((row, index) => {
       const committees = normalizeCommitteeList(row);
@@ -790,6 +797,13 @@ function renderTaskRows() {
           ${agendaMode ? `<input data-meetings-task-index="${index}" data-meetings-task-field="committee" value="${escapeAttr(row.committee || '')}" readonly placeholder="ФИО участника">` : ''}
           <input data-meetings-task-index="${index}" data-meetings-task-field="task" value="${escapeAttr(row.task || '')}" ${agendaMode ? 'readonly' : ''} placeholder="${protocolMode ? 'Поручение' : 'Должность'}">
           <input data-meetings-task-index="${index}" data-meetings-task-field="date" ${agendaMode ? 'maxlength="3"' : 'data-meetings-date maxlength="10"'} value="${escapeAttr(row.date || '')}" placeholder="${agendaMode ? '№' : 'ДД.ММ.ГГГГ'}">
+          ${protocolMode ? `<input list="meetingsGeneralCasesList" data-meetings-task-index="${index}" data-meetings-task-field="general_case_id" value="${escapeAttr(row.general_case_id || '')}" placeholder="ID дела">` : ''}
+          ${protocolMode ? `<select data-meetings-task-index="${index}" data-meetings-task-field="priority" aria-label="Приоритет поручения">
+            <option value="" ${!row.priority ? 'selected' : ''}>Обычный</option>
+            <option value="Высокий" ${row.priority === 'Высокий' ? 'selected' : ''}>Высокий</option>
+            <option value="Средний" ${row.priority === 'Средний' ? 'selected' : ''}>Средний</option>
+            <option value="Низкий" ${row.priority === 'Низкий' ? 'selected' : ''}>Низкий</option>
+          </select>` : ''}
           <label><input type="checkbox" data-meetings-task-index="${index}" data-meetings-task-field="done" ${row.done ? 'checked' : ''} ${agendaMode ? 'disabled' : ''}></label>
         </div>
       `;
@@ -853,6 +867,22 @@ function normalizeCommitteeList(row = {}) {
   if (raw.includes('§§')) return raw.split('§§').map(value => value.trim()).filter(Boolean).concat(['']).slice(0, raw.split('§§').filter(Boolean).length || 1);
   if (raw.includes('\n')) return raw.split('\n').map(value => value.trim()).filter(Boolean).concat(['']).slice(0, raw.split('\n').filter(Boolean).length || 1);
   return [raw];
+}
+
+async function ensureMeetingGeneralCasesLoaded() {
+  if (state.generalCasesLoaded) return state.generalCases;
+  const rows = await dbApi.getGeneralCases().catch(() => []);
+  state.generalCases = Array.isArray(rows) ? rows.slice(0, 1000) : [];
+  state.generalCasesLoaded = true;
+  return state.generalCases;
+}
+
+function formatMeetingCaseOption(row = {}) {
+  return [
+    row.case_no ? `№ ПК ${row.case_no}` : '',
+    row.court_no ? `суд ${row.court_no}` : '',
+    row.claim_subject || row.category || ''
+  ].filter(Boolean).join(' · ') || `Дело ${row.id}`;
 }
 
 function syncProtocolReportState() {
@@ -943,9 +973,12 @@ function setDocType(type) {
   updateMeetingsBreadcrumb();
 
   if (protocol && !state.isFilling && !form?.elements.id?.value) {
-    state.taskRows = [{ committee: '', committees: [''], task: '', date: '', done: false }];
+    state.taskRows = [createEmptyProtocolTask()];
   }
-  if (protocol) ensurePeopleLoaded('msu_ip').then(updateProtocolCommitteeDatalist).catch(() => {});
+  if (protocol) {
+    ensurePeopleLoaded('msu_ip').then(updateProtocolCommitteeDatalist).catch(() => {});
+    ensureMeetingGeneralCasesLoaded().then(renderTaskRows).catch(() => {});
+  }
   if (agenda) refreshAgendaParticipantRows(false);
   syncProtocolReportState();
   renderTaskRows();
@@ -1055,7 +1088,7 @@ function cleanProtocolTaskRows() {
   state.taskRows = (state.taskRows || []).filter(row => !looksLikeAgendaParticipantRow(row));
 
   if (!state.taskRows.length) {
-    state.taskRows = [{ committee: '', committees: [''], task: '', date: '', done: false }];
+    state.taskRows = [createEmptyProtocolTask()];
   }
 }
 
@@ -1066,10 +1099,11 @@ function serializeTasks() {
     const committee = committeeList.join('§§');
     const task = String(row.task || '').trim();
     const date = String(row.date || '').trim();
+    const generalCaseId = String(row.general_case_id || '').trim();
+    const priority = String(row.priority || '').trim();
     const done = row.done ? '☑' : '☐';
-    if (!committee && !task && !date) return;
-    if (committee) rows.push(`${index + 1}. ${committee} | ${task} | ${date} | ${done}`);
-    else rows.push(`${index + 1}. ${task} | ${date} | ${done}`);
+    if (!committee && !task && !date && !generalCaseId && !priority) return;
+    rows.push(`${index + 1}. ${committee} | ${task} | ${date} | ${done} | ${generalCaseId} | ${priority}`);
   });
 
   const form = document.querySelector('[data-meetings-form]');
@@ -1104,32 +1138,73 @@ function parseProtocolTasks(text) {
     if (clean.includes('. ')) clean = clean.split('. ', 2)[1];
     const parts = clean.split('|').map(part => part.trim());
 
-    if (parts.length >= 4) { const committees = parts[0].split('§§').map(value => value.trim()).filter(Boolean); rows.push({ committee: committees.join('§§'), committees: committees.length ? committees : [''], task: parts[1], date: parts[2], done: parts[3].includes('☑') }); }
-    else rows.push({ committee: '', committees: [''], task: parts[0] || '', date: parts[1] || '', done: (parts[2] || '').includes('☑') });
+    if (parts.length >= 4) {
+      const committees = parts[0].split('§§').map(value => value.trim()).filter(Boolean);
+      rows.push({
+        committee: committees.join('§§'),
+        committees: committees.length ? committees : [''],
+        task: parts[1],
+        date: parts[2],
+        done: parts[3].includes('☑'),
+        general_case_id: parts[4] || '',
+        priority: parts[5] || ''
+      });
+    } else {
+      rows.push({
+        committee: '',
+        committees: [''],
+        task: parts[0] || '',
+        date: parts[1] || '',
+        done: (parts[2] || '').includes('☑'),
+        general_case_id: parts[3] || '',
+        priority: parts[4] || ''
+      });
+    }
   });
 
-  return rows.length ? rows : [{ committee: '', committees: [''], task: '', date: '', done: false }];
+  return rows.length ? rows : [createEmptyProtocolTask()];
 }
 
 async function transferUncheckedTasksToCalendar(meetingId, meetingData) {
   let count = 0;
+  const existingTasks = await dbApi.getCalendarTasks({}).catch(() => []);
   for (const row of state.taskRows) {
     const taskText = String(row.task || '').trim();
     if (!taskText || row.done) continue;
     const date = ruDateToIso(row.date);
     if (!date) continue;
+    const committees = normalizeCommitteeList(row).filter(Boolean);
+    const priority = String(row.priority || '').trim();
+    const generalCaseId = Number(row.general_case_id || 0) || null;
+    const assignment = [
+      taskText,
+      committees.length ? `Кому: ${committees.join(', ')}` : '',
+      priority ? `Приоритет: ${priority}` : '',
+      meetingData.title ? `Совещание: ${meetingData.title}` : ''
+    ].filter(Boolean).join('\n');
+    const duplicate = existingTasks.find(task =>
+      Number(task.meeting_id || 0) === Number(meetingId || 0) &&
+      String(task.date_str || task.date || '') === date &&
+      normalizeText(task.assignment || '') === normalizeText(assignment)
+    );
+    if (duplicate) continue;
 
     try {
       await dbApi.createCalendarTask({
         date,
         user: getCurrentUserName(),
         type: 'поручение',
-        desc: `Поручение из совещания по вопросу ${meetingData.title}`,
+        desc: `Срок исполнения поручения из совещания: ${taskText}`,
         time: meetingData.time_val || '',
         court: '',
         subject: meetingData.title || '',
-        assignment: taskText,
+        assignment,
+        note_text: [
+          committees.length ? `Ответственные: ${committees.join(', ')}` : '',
+          priority ? `Приоритет: ${priority}` : ''
+        ].filter(Boolean).join('\n'),
         meeting_id: meetingId,
+        general_case_id: generalCaseId,
         done: 0
       });
       count += 1;

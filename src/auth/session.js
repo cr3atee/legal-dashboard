@@ -1,4 +1,5 @@
 const SESSION_KEY = 'legal-dashboard-auth-session-v1';
+const USERS_MANAGE_PERMISSION = 'users.manage';
 
 export function getAuthSession() {
   try {
@@ -26,5 +27,5 @@ export function getCurrentUserName() {
 
 export function isCurrentUserAdmin() {
   const session = getAuthSession();
-  return Boolean(session?.is_admin);
+  return Array.isArray(session?.permissions) && session.permissions.includes(USERS_MANAGE_PERMISSION);
 }

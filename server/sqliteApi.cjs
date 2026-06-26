@@ -9,6 +9,68 @@ const schemaInitialization = new Map();
 const DEFAULT_JSON_BODY_LIMIT = 10 * 1024 * 1024;
 const MAX_CASE_DOCUMENT_BYTES = 100 * 1024 * 1024;
 const MAX_CASE_DOCUMENT_BODY_BYTES = Math.ceil(MAX_CASE_DOCUMENT_BYTES * 4 / 3) + 2 * 1024 * 1024;
+const MAX_REPORT_DOCUMENT_BYTES = 100 * 1024 * 1024;
+const MAX_REPORT_DOCUMENT_BODY_BYTES = Math.ceil(MAX_REPORT_DOCUMENT_BYTES * 4 / 3) + 2 * 1024 * 1024;
+
+const ROLE_LEVELS = {
+  PARTICIPANT: 1,
+  REPORT_ADMIN: 2,
+  MAIN_ADMIN: 3,
+  TECH_ADMIN: 4
+};
+
+const ROLE_NAMES = {
+  1: 'Участник',
+  2: 'Администратор отчетов',
+  3: 'Главный администратор',
+  4: 'Технический администратор'
+};
+
+const PERMISSIONS = {
+  DASHBOARD_VIEW: 'dashboard.view',
+  CASES_VIEW: 'cases.view',
+  CASES_VIEW_ANY: 'cases.view.any',
+  CASES_EDIT_OWN: 'cases.edit.own',
+  CASES_EDIT_ANY: 'cases.edit.any',
+  CONTROLLED_CASES_VIEW: 'controlledCases.view',
+  CONTROLLED_CASES_EDIT: 'controlledCases.edit',
+  CALENDAR_VIEW_OWN: 'calendar.view.own',
+  CALENDAR_VIEW_ANY: 'calendar.view.any',
+  CALENDAR_EDIT_OWN: 'calendar.edit.own',
+  CALENDAR_EDIT_ANY: 'calendar.edit.any',
+  SCHEDULE_VIEW_OWN: 'schedule.view.own',
+  SCHEDULE_VIEW_ANY: 'schedule.view.any',
+  SCHEDULE_EDIT_OWN: 'schedule.edit.own',
+  SCHEDULE_EDIT_ANY: 'schedule.edit.any',
+  REPORTS_VIEW: 'reports.view',
+  REPORTS_MANAGE_ALL: 'reports.manageAll',
+  ENFORCEMENT_VIEW: 'enforcement.view',
+  MAP_VIEW: 'map.view',
+  REGISTRY_VIEW: 'registry.view',
+  EMERGENCY_FUND_VIEW: 'emergencyFund.view',
+  MEETINGS_VIEW: 'meetings.view',
+  USERS_LOOKUP: 'users.lookup',
+  USERS_MANAGE: 'users.manage',
+  USERS_CREATE: 'users.create',
+  USERS_UPDATE: 'users.update',
+  USERS_RESET_PASSWORD: 'users.resetPassword',
+  PERMISSIONS_MANAGE: 'permissions.manage',
+  TECH_ADMIN_ASSIGN: 'techAdmin.assign',
+  DICTIONARIES_VIEW: 'dictionaries.view',
+  DICTIONARIES_MANAGE: 'dictionaries.manage',
+  ROLES_MANAGE: 'roles.manage',
+  TECHNICAL_ACCESS: 'technical.access'
+};
+
+const INDIVIDUAL_GRANT_PERMISSIONS = new Set([
+  PERMISSIONS.CONTROLLED_CASES_VIEW,
+  PERMISSIONS.ENFORCEMENT_VIEW,
+  PERMISSIONS.MAP_VIEW,
+  PERMISSIONS.REGISTRY_VIEW,
+  PERMISSIONS.EMERGENCY_FUND_VIEW,
+  PERMISSIONS.MEETINGS_VIEW,
+  PERMISSIONS.REPORTS_VIEW
+]);
 
 function openDb(dbPath) {
   const db = new sqlite3.Database(dbPath);
@@ -63,9 +125,29 @@ function initializeSchema(dbPath) {
     db.run(`ALTER TABLE users ADD COLUMN full_name TEXT DEFAULT ''`, () => {});
     db.run(`ALTER TABLE users ADD COLUMN password TEXT DEFAULT ''`, () => {});
     db.run(`ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0`, () => {});
-    db.run(`INSERT INTO users (full_name, password, is_admin)
+    db.run(`ALTER TABLE users ADD COLUMN role_level INTEGER DEFAULT 1`, () => {});
+    db.run(`ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1`, () => {});
+    db.run(`ALTER TABLE users ADD COLUMN password_hash TEXT DEFAULT ''`, () => {});
+    db.run(`ALTER TABLE users ADD COLUMN password_salt TEXT DEFAULT ''`, () => {});
+    db.run(`ALTER TABLE users ADD COLUMN password_scheme TEXT DEFAULT ''`, () => {});
+    db.run(`ALTER TABLE users ADD COLUMN created_at TEXT DEFAULT ''`, () => {});
+    db.run(`INSERT OR IGNORE INTO users (full_name, password, is_admin)
       SELECT 'Администратор', 'admin', 1
-      WHERE NOT EXISTS (SELECT 1 FROM users WHERE password='admin')`);
+      WHERE NOT EXISTS (SELECT 1 FROM users WHERE full_name='Администратор' OR password='admin')`);
+    db.run(`UPDATE users SET role_level=1 WHERE COALESCE(role_level,0) NOT BETWEEN 1 AND 4`);
+    db.run(`UPDATE users SET is_active=1 WHERE is_active IS NULL`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS user_permissions (
+      user_id INTEGER NOT NULL,
+      permission TEXT NOT NULL,
+      granted_by INTEGER,
+      granted_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, permission)
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS schema_migrations (
+      key TEXT PRIMARY KEY,
+      applied_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
 
     db.run(`CREATE TABLE IF NOT EXISTS general_cases (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -405,15 +487,73 @@ db.run(`CREATE TABLE IF NOT EXISTS meeting_participants (
   full_name TEXT NOT NULL,
   position TEXT DEFAULT '',
   leadership TEXT DEFAULT '',
+  is_leadership INTEGER DEFAULT 1,
   sort_order INTEGER DEFAULT 999
 )`);
 
+    db.run(`CREATE TABLE IF NOT EXISTS quarterly_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      user_name TEXT DEFAULT '',
+      year INTEGER NOT NULL,
+      quarter INTEGER NOT NULL,
+      original_name TEXT DEFAULT '',
+      stored_name TEXT DEFAULT '',
+      mime_type TEXT DEFAULT '',
+      size_bytes INTEGER DEFAULT 0,
+      uploaded_by INTEGER,
+      uploaded_by_name TEXT DEFAULT '',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, year, quarter)
+    )`);
+    const ensureQuarterlyReportColumnMigrations = {
+      user_id: "INTEGER DEFAULT 0",
+      user_name: "TEXT DEFAULT ''",
+      year: "INTEGER DEFAULT 0",
+      quarter: "INTEGER DEFAULT 0",
+      original_name: "TEXT DEFAULT ''",
+      stored_name: "TEXT DEFAULT ''",
+      mime_type: "TEXT DEFAULT ''",
+      size_bytes: "INTEGER DEFAULT 0",
+      uploaded_by: "INTEGER",
+      uploaded_by_name: "TEXT DEFAULT ''",
+      created_at: "TEXT DEFAULT ''",
+      updated_at: "TEXT DEFAULT ''"
+    };
+    for (const [column, type] of Object.entries(ensureQuarterlyReportColumnMigrations)) {
+      db.run(`ALTER TABLE quarterly_reports ADD COLUMN ${column} ${type}`, () => {});
+    }
+    db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_quarterly_reports_unique ON quarterly_reports(user_id, year, quarter)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_quarterly_reports_user_year ON quarterly_reports(user_id, year, quarter)`);
+
+    const ensureMeetingsColumnMigrations = {
+      invited_participants: "TEXT DEFAULT ''",
+      attachment_type: "TEXT DEFAULT ''",
+      protocol_keeper: "TEXT DEFAULT ''",
+      cabinet_number: "TEXT DEFAULT ''",
+      telegram_number: "TEXT DEFAULT ''",
+      transfer_email: "TEXT DEFAULT ''",
+      transfer_fio: "TEXT DEFAULT ''",
+      transfer_phone: "TEXT DEFAULT ''",
+      telegram_sign_fio: "TEXT DEFAULT ''",
+      protocol_number: "TEXT DEFAULT ''",
+      protocol_chair_fio: "TEXT DEFAULT ''",
+      protocol_chair_position: "TEXT DEFAULT ''",
+      agenda_sign_position: "TEXT DEFAULT ''",
+      agenda_sign_fio: "TEXT DEFAULT ''",
+      updated_at: "TEXT DEFAULT ''"
+    };
+    for (const [column, type] of Object.entries(ensureMeetingsColumnMigrations)) {
+      db.run(`ALTER TABLE meetings ADD COLUMN ${column} ${type}`, () => {});
+    }
 
     const ensureMeetingParticipantsColumnMigrations = {
       category: "TEXT DEFAULT ''",
       full_name: "TEXT DEFAULT ''",
       position: "TEXT DEFAULT ''",
       leadership: "TEXT DEFAULT ''",
+      is_leadership: "INTEGER DEFAULT 1",
       sort_order: "INTEGER DEFAULT 999"
     };
     for (const [column, type] of Object.entries(ensureMeetingParticipantsColumnMigrations)) {
@@ -425,9 +565,13 @@ db.run(`CREATE TABLE IF NOT EXISTS meeting_participants (
       user_id INTEGER,
       full_name TEXT DEFAULT '',
       is_admin INTEGER DEFAULT 0,
+      role_level INTEGER DEFAULT 1,
+      permissions_json TEXT DEFAULT '',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       expires_at TEXT DEFAULT ''
     )`);
+    db.run(`ALTER TABLE app_sessions ADD COLUMN role_level INTEGER DEFAULT 1`, () => {});
+    db.run(`ALTER TABLE app_sessions ADD COLUMN permissions_json TEXT DEFAULT ''`, () => {});
     db.run(`CREATE INDEX IF NOT EXISTS idx_app_sessions_expires ON app_sessions(expires_at)`);
 
     db.run(`CREATE TABLE IF NOT EXISTS notification_reads (
@@ -437,6 +581,28 @@ db.run(`CREATE TABLE IF NOT EXISTS meeting_participants (
       PRIMARY KEY (user_name, notification_key)
     )`);
 
+    db.run(`CREATE TABLE IF NOT EXISTS general_case_review_approvals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      general_case_id INTEGER NOT NULL,
+      document_path TEXT NOT NULL,
+      document_name TEXT DEFAULT '',
+      document_type TEXT DEFAULT '',
+      requester_name TEXT DEFAULT '',
+      reviewer_name TEXT DEFAULT '',
+      status TEXT DEFAULT 'draft',
+      request_comment TEXT DEFAULT '',
+      reviewer_comment TEXT DEFAULT '',
+      marked_file_path TEXT DEFAULT '',
+      history_json TEXT DEFAULT '[]',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      approved_at TEXT DEFAULT '',
+      completed_at TEXT DEFAULT '',
+      UNIQUE(general_case_id, document_path)
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_general_case_review_approvals_case ON general_case_review_approvals(general_case_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_general_case_review_approvals_status ON general_case_review_approvals(status)`);
+
     });
     db.close(error => error ? reject(error) : resolve());
   });
@@ -445,7 +611,7 @@ db.run(`CREATE TABLE IF NOT EXISTS meeting_participants (
 function ensureSchema(dbPath) {
   const key = pathModule.resolve(dbPath);
   if (!schemaInitialization.has(key)) {
-    const initialization = initializeSchema(key).catch(error => {
+    const initialization = initializeSchema(key).then(() => migrateUserSecurity(key)).catch(error => {
       schemaInitialization.delete(key);
       throw error;
     });
@@ -454,14 +620,397 @@ function ensureSchema(dbPath) {
   return schemaInitialization.get(key);
 }
 
+async function migrateUserSecurity(dbPath) {
+  await run(dbPath, `CREATE TABLE IF NOT EXISTS schema_migrations (
+    key TEXT PRIMARY KEY,
+    applied_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await run(dbPath, 'UPDATE users SET role_level=1 WHERE COALESCE(role_level,0) NOT BETWEEN 1 AND 4');
+  const legacyRoleMigration = await get(dbPath, "SELECT key FROM schema_migrations WHERE key='legacy_is_admin_role_level_v1' LIMIT 1").catch(() => null);
+  if (!legacyRoleMigration) {
+    await run(dbPath, 'UPDATE users SET role_level=3 WHERE id<>1 AND COALESCE(is_admin,0)=1 AND COALESCE(role_level,1)=1');
+    await run(dbPath, "INSERT OR IGNORE INTO schema_migrations (key) VALUES ('legacy_is_admin_role_level_v1')");
+  }
+  await run(dbPath, 'UPDATE users SET role_level=4, is_admin=1, is_active=1 WHERE id=1');
+  await run(dbPath, 'UPDATE users SET is_active=1 WHERE is_active IS NULL');
+  await run(dbPath, "UPDATE users SET created_at=CURRENT_TIMESTAMP WHERE COALESCE(created_at,'')=''");
+
+  const legacyUsers = await all(dbPath, `
+    SELECT id, password
+    FROM users
+    WHERE COALESCE(password,'')<>''
+      AND COALESCE(password_hash,'')=''
+  `);
+
+  for (const user of legacyUsers) {
+    const credentials = makePasswordCredentials(user.password);
+    await run(dbPath, `
+      UPDATE users
+      SET password_hash=?, password_salt=?, password_scheme='scrypt', password=?
+      WHERE id=?
+    `, [credentials.hash, credentials.salt, `__migrated_password_${user.id}__`, user.id]);
+  }
+
+  const hashedUsers = await all(dbPath, "SELECT id FROM users WHERE COALESCE(password_hash,'')<>''");
+  for (const user of hashedUsers) {
+    await run(dbPath, 'UPDATE users SET password=? WHERE id=?', [`__migrated_password_${user.id}__`, user.id]);
+  }
+}
+
 function sendJson(res, statusCode, data) {
-  res.writeHead(statusCode, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': '*'
-  });
-  res.end(JSON.stringify(data));
+  if (res.writableEnded || res.destroyed) return;
+  try {
+    if (!res.headersSent) {
+      res.writeHead(statusCode, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+        'Access-Control-Allow-Headers': '*'
+      });
+    }
+
+    if (!res.writableEnded && !res.destroyed) {
+      res.end(JSON.stringify(data));
+    }
+  } catch {
+    try { res.destroy(); } catch {}
+  }
+}
+
+function normalizeRoleLevel(value) {
+  const level = Number(value || 0);
+  if (level >= ROLE_LEVELS.TECH_ADMIN) return ROLE_LEVELS.TECH_ADMIN;
+  if (level >= ROLE_LEVELS.MAIN_ADMIN) return ROLE_LEVELS.MAIN_ADMIN;
+  if (level >= ROLE_LEVELS.REPORT_ADMIN) return ROLE_LEVELS.REPORT_ADMIN;
+  return ROLE_LEVELS.PARTICIPANT;
+}
+
+function parseRoleLevel(value) {
+  const level = Number(value);
+  return Number.isInteger(level) && level >= ROLE_LEVELS.PARTICIPANT && level <= ROLE_LEVELS.TECH_ADMIN
+    ? level
+    : null;
+}
+
+function getRolePermissions(roleLevel) {
+  const level = normalizeRoleLevel(roleLevel);
+  const permissions = new Set([
+    PERMISSIONS.DASHBOARD_VIEW,
+    PERMISSIONS.CASES_VIEW,
+    PERMISSIONS.CASES_EDIT_OWN,
+    PERMISSIONS.CALENDAR_VIEW_OWN,
+    PERMISSIONS.CALENDAR_EDIT_OWN,
+    PERMISSIONS.SCHEDULE_VIEW_OWN,
+    PERMISSIONS.SCHEDULE_EDIT_OWN,
+    PERMISSIONS.USERS_LOOKUP,
+    PERMISSIONS.DICTIONARIES_VIEW
+  ]);
+
+  if (level >= ROLE_LEVELS.REPORT_ADMIN) {
+    permissions.add(PERMISSIONS.REPORTS_VIEW);
+    permissions.add(PERMISSIONS.REPORTS_MANAGE_ALL);
+  }
+
+  if (level >= ROLE_LEVELS.MAIN_ADMIN) {
+    [
+      PERMISSIONS.CASES_VIEW,
+      PERMISSIONS.CASES_VIEW_ANY,
+      PERMISSIONS.CASES_EDIT_ANY,
+      PERMISSIONS.CONTROLLED_CASES_VIEW,
+      PERMISSIONS.CONTROLLED_CASES_EDIT,
+      PERMISSIONS.CALENDAR_VIEW_ANY,
+      PERMISSIONS.CALENDAR_EDIT_ANY,
+      PERMISSIONS.SCHEDULE_VIEW_ANY,
+      PERMISSIONS.SCHEDULE_EDIT_ANY,
+      PERMISSIONS.ENFORCEMENT_VIEW,
+      PERMISSIONS.MAP_VIEW,
+      PERMISSIONS.REGISTRY_VIEW,
+      PERMISSIONS.EMERGENCY_FUND_VIEW,
+      PERMISSIONS.MEETINGS_VIEW,
+      PERMISSIONS.USERS_MANAGE,
+      PERMISSIONS.USERS_CREATE,
+      PERMISSIONS.USERS_UPDATE,
+      PERMISSIONS.USERS_RESET_PASSWORD,
+      PERMISSIONS.PERMISSIONS_MANAGE,
+      PERMISSIONS.DICTIONARIES_MANAGE
+    ].forEach(permission => permissions.add(permission));
+  }
+
+  if (level >= ROLE_LEVELS.TECH_ADMIN) {
+    permissions.add(PERMISSIONS.ROLES_MANAGE);
+    permissions.add(PERMISSIONS.TECH_ADMIN_ASSIGN);
+    permissions.add(PERMISSIONS.TECHNICAL_ACCESS);
+  }
+
+  return permissions;
+}
+
+function makePasswordCredentials(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(String(password || ''), salt, 32).toString('hex');
+  return { hash, salt, scheme: 'scrypt' };
+}
+
+function verifyPassword(password, user = {}) {
+  const value = String(password || '');
+  if (user.password_hash || user.password_salt) {
+    if (user.password_scheme !== 'scrypt' || !user.password_hash || !user.password_salt) {
+      return false;
+    }
+    try {
+      const hash = crypto.scryptSync(value, String(user.password_salt), 32).toString('hex');
+      const expected = Buffer.from(String(user.password_hash), 'hex');
+      const actual = Buffer.from(hash, 'hex');
+      return expected.length === actual.length && crypto.timingSafeEqual(actual, expected);
+    } catch {
+      return false;
+    }
+  }
+  return Boolean(user.password) && String(user.password) === value;
+}
+
+async function loadUserPermissions(dbPath, userId) {
+  if (!userId) return [];
+  const rows = await all(dbPath, 'SELECT permission FROM user_permissions WHERE user_id=? ORDER BY permission', [userId]).catch(() => []);
+  return rows.map(row => String(row.permission || '').trim()).filter(Boolean);
+}
+
+async function buildSessionFromUser(dbPath, user) {
+  if (!user) return null;
+  const roleLevel = normalizeRoleLevel(user.role_level);
+  const individualPermissions = await loadUserPermissions(dbPath, user.id);
+  const permissions = new Set([...getRolePermissions(roleLevel), ...individualPermissions]);
+  if (permissions.has(PERMISSIONS.CONTROLLED_CASES_VIEW)) {
+    permissions.add(PERMISSIONS.CONTROLLED_CASES_EDIT);
+  }
+  return {
+    id: user.id || null,
+    full_name: user.full_name || user.name || 'Пользователь',
+    is_admin: roleLevel >= ROLE_LEVELS.MAIN_ADMIN,
+    role_level: roleLevel,
+    role_name: ROLE_NAMES[roleLevel] || ROLE_NAMES[ROLE_LEVELS.PARTICIPANT],
+    permissions: [...permissions],
+    individual_permissions: individualPermissions
+  };
+}
+
+function hasPermission(session, permission) {
+  return Boolean(session?.permissions?.includes(permission));
+}
+
+function isSameUserName(a, b) {
+  return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+}
+
+function isOwnGeneralCase(session, row = {}) {
+  if (!session || !row) return false;
+  return isSameUserName(row.executor, session.full_name);
+}
+
+function canEditGeneralCase(session, row) {
+  if (!session || !row) return false;
+  return hasPermission(session, PERMISSIONS.CASES_EDIT_ANY) || isOwnGeneralCase(session, row);
+}
+
+function canEditScheduleRow(session, row) {
+  if (!session || !row) return false;
+  if (hasPermission(session, PERMISSIONS.SCHEDULE_EDIT_ANY)) return true;
+  return isSameUserName(row.representative, session.full_name);
+}
+
+function getRequiredApiPermission(path, method) {
+  const safeMethod = String(method || 'GET').toUpperCase();
+  if (path === '/api/health' || path.startsWith('/api/auth/')) return '';
+  if (path === '/api/users') return PERMISSIONS.USERS_LOOKUP;
+  if (path.startsWith('/api/admin/users')) return PERMISSIONS.USERS_MANAGE;
+  if (path.startsWith('/api/admin/options')) return PERMISSIONS.DICTIONARIES_MANAGE;
+  if (path.startsWith('/api/options')) return safeMethod === 'GET' ? PERMISSIONS.DICTIONARIES_VIEW : PERMISSIONS.DICTIONARIES_MANAGE;
+  if (path.startsWith('/api/general-cases') || path.startsWith('/api/general-case-files')) {
+    return PERMISSIONS.CASES_VIEW;
+  }
+  if (path.startsWith('/api/controlled-cases')) {
+    return safeMethod === 'GET' ? PERMISSIONS.CONTROLLED_CASES_VIEW : PERMISSIONS.CONTROLLED_CASES_EDIT;
+  }
+  if (path.startsWith('/api/calendar-tasks')) {
+    return safeMethod === 'GET' ? PERMISSIONS.CALENDAR_VIEW_OWN : PERMISSIONS.CALENDAR_EDIT_OWN;
+  }
+  if (path.startsWith('/api/court-schedule')) {
+    return safeMethod === 'GET' ? PERMISSIONS.SCHEDULE_VIEW_OWN : PERMISSIONS.SCHEDULE_EDIT_OWN;
+  }
+  if (path.startsWith('/api/reports')) return PERMISSIONS.REPORTS_VIEW;
+  if (path.startsWith('/api/enforcement')) return PERMISSIONS.ENFORCEMENT_VIEW;
+  if (path.startsWith('/api/municipal-registry')) return PERMISSIONS.REGISTRY_VIEW;
+  if (path.startsWith('/api/emergency-fund')) return PERMISSIONS.EMERGENCY_FUND_VIEW;
+  if (path.startsWith('/api/meetings') || path.startsWith('/api/meeting-participants')) return PERMISSIONS.MEETINGS_VIEW;
+  if (path.startsWith('/api/notifications')) return PERMISSIONS.DASHBOARD_VIEW;
+  return '';
+}
+
+async function enforceApiAccess(req, res, dbPath, path, method) {
+  const permission = getRequiredApiPermission(path, method);
+  if (!permission) return null;
+  const session = await getRequestSession(req, dbPath);
+  if (!session) {
+    sendJson(res, 401, { error: 'auth_required' });
+    return false;
+  }
+  if (!hasPermission(session, permission)) {
+    sendJson(res, 403, { error: 'forbidden', permission });
+    return false;
+  }
+  return session;
+}
+
+async function replaceUserPermissions(dbPath, userId, permissions, grantedBy = null) {
+  const normalized = normalizeIndividualPermissions(permissions);
+  await run(dbPath, 'DELETE FROM user_permissions WHERE user_id=?', [userId]);
+  for (const permission of normalized) {
+    await run(dbPath, 'INSERT OR IGNORE INTO user_permissions (user_id, permission, granted_by) VALUES (?, ?, ?)', [userId, permission, grantedBy]);
+  }
+  return normalized;
+}
+
+function normalizeIndividualPermissions(permissions) {
+  const requested = [...new Set((Array.isArray(permissions) ? permissions : [])
+    .map(permission => String(permission || '').trim())
+    .filter(Boolean))];
+  const unknown = requested.find(permission => !INDIVIDUAL_GRANT_PERMISSIONS.has(permission));
+  if (unknown) {
+    const error = new Error('invalid_permission');
+    error.code = 'INVALID_PERMISSION';
+    error.permission = unknown;
+    throw error;
+  }
+  return requested;
+}
+
+async function listUsersForAdmin(dbPath) {
+  const rows = await all(dbPath, `
+    SELECT id, full_name, role_level, is_active, created_at
+    FROM users
+    ORDER BY
+      CASE WHEN COALESCE(is_active, 0)=1 THEN 0 ELSE 1 END,
+      full_name COLLATE NOCASE,
+      id
+  `, []);
+  const result = [];
+  for (const row of rows) {
+    const roleLevel = normalizeRoleLevel(row.role_level);
+    result.push({
+      id: row.id,
+      full_name: row.full_name || '',
+      is_active: Number(row.is_active ?? 1) ? 1 : 0,
+      role_level: roleLevel,
+      role_name: ROLE_NAMES[roleLevel] || ROLE_NAMES[ROLE_LEVELS.PARTICIPANT],
+      individual_permissions: (await loadUserPermissions(dbPath, row.id))
+        .filter(permission => INDIVIDUAL_GRANT_PERMISSIONS.has(permission)),
+      created_at: row.created_at || ''
+    });
+  }
+  return result;
+}
+
+async function isLastActiveTechAdmin(dbPath, userId) {
+  const row = await get(dbPath, `
+    SELECT COUNT(*) AS count
+    FROM users
+    WHERE COALESCE(is_active,1)=1
+      AND COALESCE(role_level,1)=4
+      AND id<>?
+  `, [userId]).catch(() => null);
+  return Number(row?.count || 0) === 0;
+}
+
+async function listDictionaryOptions(dbPath) {
+  const options = await all(dbPath, `
+    SELECT id, category, value
+    FROM app_options
+    ORDER BY category, value, id
+  `, []);
+  const meetingParticipants = await all(dbPath, `
+    SELECT id, category, full_name AS value, position, leadership, is_leadership, sort_order
+    FROM meeting_participants
+    WHERE category IN ('msu_ip', 'invited_ip')
+    ORDER BY category, sort_order, full_name, id
+  `, []).catch(() => []);
+  return options
+    .map(row => ({ id: String(row.id), category: row.category, value: row.value }))
+    .concat(meetingParticipants.map(row => ({
+      id: `meeting:${row.id}`,
+      category: row.category,
+      value: row.value,
+      position: row.position || '',
+      leadership: row.leadership || '',
+      is_leadership: Number(row.is_leadership ?? 1) ? 1 : 0,
+      sort_order: row.sort_order ?? 999,
+      source: 'meeting_participants'
+    })));
+}
+
+function isMeetingParticipantDictionaryCategory(category) {
+  return ['msu_ip', 'invited_ip'].includes(String(category || ''));
+}
+
+function parseAdminDictionaryId(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return { type: 'option', id: 0 };
+  if (raw.startsWith('meeting:')) return { type: 'meeting', id: Number(raw.slice('meeting:'.length) || 0) };
+  return { type: 'option', id: Number(raw || 0) };
+}
+
+async function getMeetingParticipantDictionaryRow(dbPath, id) {
+  const row = await get(dbPath, `
+    SELECT id, category, full_name AS value, position, leadership, is_leadership, sort_order
+    FROM meeting_participants
+    WHERE id=?
+  `, [id]);
+  return row ? {
+    id: `meeting:${row.id}`,
+    category: row.category,
+    value: row.value,
+    position: row.position || '',
+    leadership: row.leadership || '',
+    is_leadership: Number(row.is_leadership ?? 1) ? 1 : 0,
+    sort_order: row.sort_order ?? 999,
+    source: 'meeting_participants'
+  } : null;
+}
+
+async function isMeetingParticipantValueUsed(dbPath, category, value) {
+  const column = category === 'invited_ip' ? 'invited_participants' : 'participants';
+  const row = await get(dbPath, `
+    SELECT 1 AS used
+    FROM meetings
+    WHERE instr(char(10) || replace(COALESCE(${column}, ''), char(13), '') || char(10), char(10) || ? || char(10)) > 0
+    LIMIT 1
+  `, [value]).catch(() => null);
+  return Boolean(row?.used);
+}
+
+async function isOptionValueUsed(dbPath, category, value) {
+  const checks = [
+    ['general_cases', 'category', ['case_category']],
+    ['general_cases', 'court', ['court']],
+    ['general_cases', 'judge', ['judge']],
+    ['general_cases', 'executor', ['representatives']],
+    ['general_cases', 'procedural_position', ['procedural_position']],
+    ['court_schedule', 'court', ['court']],
+    ['court_schedule', 'representative', ['representatives']],
+    ['court_schedule', 'category', ['stage', 'case_category']],
+    ['municipal_registry', 'court', ['court']],
+    ['municipal_registry', 'stage', ['stage']],
+    ['emergency_fund', 'court', ['court']],
+    ['emergency_fund', 'stage', ['stage']],
+    ['emergency_fund', 'requirements', ['requirements']],
+    ['emergency_fund', 'prosecutor', ['prosecutor']],
+    ['emergency_fund', 'district', ['district']]
+  ].filter(([, , categories]) => categories.includes(category));
+
+  for (const [table, column] of checks) {
+    const row = await get(dbPath, `SELECT 1 AS used FROM ${table} WHERE COALESCE(${column}, '')=? LIMIT 1`, [value]).catch(() => null);
+    if (row?.used) return true;
+  }
+  return false;
 }
 
 function readBody(req, { maxBytes = DEFAULT_JSON_BODY_LIMIT } = {}) {
@@ -514,8 +1063,18 @@ const CASE_DOCUMENT_MIME = {
   '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 };
 
+const REPORT_DOCUMENT_MIME = {
+  ...CASE_DOCUMENT_MIME,
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+};
+
 function caseDocumentsDir(dbPath) {
   return pathModule.join(pathModule.dirname(dbPath), 'uploads', 'general-cases');
+}
+
+function reportDocumentsDir(dbPath) {
+  return pathModule.join(pathModule.dirname(dbPath), 'uploads', 'reports');
 }
 
 function sanitizeUploadedFileName(value) {
@@ -541,6 +1100,541 @@ function streamInlineFile(res, filePath, mimeType) {
     'Access-Control-Allow-Origin': '*'
   });
   fs.createReadStream(filePath).pipe(res);
+}
+
+function streamReportFile(res, filePath, mimeType, disposition = 'attachment') {
+  let stat;
+  try { stat = fs.statSync(filePath); } catch { sendJson(res, 404, { error: 'file_not_found' }); return; }
+  if (!stat.isFile()) { sendJson(res, 404, { error: 'file_not_found' }); return; }
+  if (!['inline', 'attachment'].includes(disposition)) disposition = 'attachment';
+  res.writeHead(200, {
+    'Content-Type': mimeType || REPORT_DOCUMENT_MIME[pathModule.extname(filePath).toLowerCase()] || 'application/octet-stream',
+    'Content-Length': stat.size,
+    'Content-Disposition': `${disposition}; filename*=UTF-8''${encodeURIComponent(pathModule.basename(filePath))}`,
+    'Cache-Control': 'no-store',
+    'Access-Control-Allow-Origin': '*'
+  });
+  fs.createReadStream(filePath).pipe(res);
+}
+
+function pad2(value) {
+  return String(value).padStart(2, '0');
+}
+
+function toReportDate(value = '') {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+
+  let match = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (match) {
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  match = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})/);
+  if (match) {
+    const year = Number(match[3].length === 2 ? `20${match[3]}` : match[3]);
+    const date = new Date(year, Number(match[2]) - 1, Number(match[1]));
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+}
+
+function formatReportDate(value = '') {
+  const date = toReportDate(value);
+  return date ? `${pad2(date.getDate())}.${pad2(date.getMonth() + 1)}.${date.getFullYear()}` : String(value || '');
+}
+
+function toReportIsoDate(value = '') {
+  const date = toReportDate(value);
+  return date ? `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}` : '';
+}
+
+function isReportDateInMonth(value, year, monthIndex) {
+  const date = toReportDate(value);
+  return Boolean(date && date.getFullYear() === year && date.getMonth() === monthIndex);
+}
+
+function isReportDateToday(value, today = new Date()) {
+  const date = toReportDate(value);
+  return Boolean(date
+    && date.getFullYear() === today.getFullYear()
+    && date.getMonth() === today.getMonth()
+    && date.getDate() === today.getDate());
+}
+
+function isReportDateOverdue(value, today = new Date()) {
+  const date = toReportDate(value);
+  if (!date) return false;
+  const day = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return date.getTime() < day.getTime();
+}
+
+function getQuarterFromDate(value = new Date()) {
+  const date = toReportDate(value) || new Date();
+  return Math.floor(date.getMonth() / 3) + 1;
+}
+
+function normalizeReportYear(value, fallbackDate = new Date()) {
+  const year = Number(value);
+  if (Number.isInteger(year) && year >= 2000 && year <= 2100) return year;
+  const date = toReportDate(fallbackDate) || new Date();
+  return date.getFullYear();
+}
+
+function normalizeReportQuarter(value, fallbackDate = new Date()) {
+  const quarter = Number(value);
+  if (Number.isInteger(quarter) && quarter >= 1 && quarter <= 4) return quarter;
+  return getQuarterFromDate(fallbackDate);
+}
+
+function normalizeReportUserIds(value) {
+  const values = Array.isArray(value) ? value : String(value || '').split(',');
+  return [...new Set(values.map(item => Number(item)).filter(Number.isInteger).filter(id => id > 0))];
+}
+
+function canManageReportScope(session) {
+  return normalizeRoleLevel(session?.role_level) >= ROLE_LEVELS.REPORT_ADMIN
+    || hasPermission(session, PERMISSIONS.REPORTS_MANAGE_ALL);
+}
+
+async function listReportUsers(dbPath) {
+  const rows = await all(dbPath, `
+    SELECT id, full_name, role_level, is_active
+    FROM users
+    WHERE COALESCE(full_name,'')<>''
+    ORDER BY
+      CASE WHEN COALESCE(is_active, 0)=1 THEN 0 ELSE 1 END,
+      full_name COLLATE NOCASE,
+      id
+  `, []).catch(() => []);
+  return rows.map(row => ({
+    id: Number(row.id),
+    full_name: row.full_name || '',
+    role_level: normalizeRoleLevel(row.role_level),
+    is_active: Number(row.is_active ?? 1) ? 1 : 0
+  })).filter(row => row.id && row.full_name);
+}
+
+async function resolveCurrentReportUser(dbPath, session) {
+  const sessionId = Number(session?.id || 0);
+  if (sessionId) {
+    const user = await get(dbPath, `
+      SELECT id, full_name, role_level, is_active
+      FROM users
+      WHERE id=? AND COALESCE(is_active,1)=1
+      LIMIT 1
+    `, [sessionId]).catch(() => null);
+    if (user) {
+      return {
+        id: Number(user.id),
+        full_name: user.full_name || session.full_name || '',
+        role_level: normalizeRoleLevel(user.role_level),
+        is_active: 1
+      };
+    }
+  }
+
+  const fullName = String(session?.full_name || '').trim();
+  if (fullName) {
+    const user = await get(dbPath, `
+      SELECT id, full_name, role_level, is_active
+      FROM users
+      WHERE full_name=? AND COALESCE(is_active,1)=1
+      LIMIT 1
+    `, [fullName]).catch(() => null);
+    if (user) {
+      return {
+        id: Number(user.id),
+        full_name: user.full_name || fullName,
+        role_level: normalizeRoleLevel(user.role_level),
+        is_active: 1
+      };
+    }
+  }
+
+  return {
+    id: sessionId || 0,
+    full_name: fullName,
+    role_level: normalizeRoleLevel(session?.role_level),
+    is_active: 1
+  };
+}
+
+async function getReportScope(dbPath, session, source = {}) {
+  const currentUser = await resolveCurrentReportUser(dbPath, session);
+  const manager = canManageReportScope(session);
+  const allUsers = await listReportUsers(dbPath);
+
+  if (!manager) {
+    return {
+      can_manage_all: false,
+      current_user: currentUser,
+      available_users: [],
+      selected_users: currentUser.full_name ? [currentUser] : [],
+      selected_user_ids: currentUser.id ? [currentUser.id] : [],
+      selected_names: currentUser.full_name ? [currentUser.full_name] : []
+    };
+  }
+
+  const rawUserIds = source.user_ids ?? source.user_id ?? '';
+  const allRequested = String(rawUserIds || '').trim().toLowerCase() === 'all'
+    || String(source.scope || '').trim().toLowerCase() === 'all'
+    || String(source.all || '') === '1';
+  let selectedUsers = allRequested ? allUsers : [];
+
+  if (!selectedUsers.length) {
+    const ids = normalizeReportUserIds(rawUserIds);
+    if (ids.length) {
+      const allowed = new Set(allUsers.map(user => Number(user.id)));
+      const forbidden = ids.find(id => !allowed.has(id));
+      if (forbidden) {
+        const error = new Error('Запрошенный сотрудник недоступен');
+        error.code = 'REPORT_SCOPE_FORBIDDEN';
+        throw error;
+      }
+      selectedUsers = allUsers.filter(user => ids.includes(Number(user.id)));
+    }
+  }
+
+  if (!selectedUsers.length) selectedUsers = allUsers.length ? allUsers : [currentUser].filter(user => user.full_name);
+
+  return {
+    can_manage_all: true,
+    current_user: currentUser,
+    available_users: allUsers,
+    selected_users: selectedUsers,
+    selected_user_ids: selectedUsers.map(user => Number(user.id)).filter(Boolean),
+    selected_names: selectedUsers.map(user => user.full_name).filter(Boolean)
+  };
+}
+
+function isOwnedByReportScope(row = {}, scope = {}, keys = []) {
+  const names = new Set((scope.selected_names || []).map(name => String(name || '').trim().toLowerCase()));
+  if (!names.size) return false;
+  return keys.some(key => names.has(String(row[key] || '').trim().toLowerCase()));
+}
+
+function serializeQuarterlyReport(row = null) {
+  if (!row) return null;
+  return {
+    id: Number(row.id),
+    user_id: Number(row.user_id),
+    user_name: row.user_name || '',
+    year: Number(row.year),
+    quarter: Number(row.quarter),
+    original_name: row.original_name || '',
+    mime_type: row.mime_type || '',
+    size_bytes: Number(row.size_bytes || 0),
+    uploaded_by: row.uploaded_by ? Number(row.uploaded_by) : null,
+    uploaded_by_name: row.uploaded_by_name || '',
+    created_at: row.created_at || '',
+    updated_at: row.updated_at || ''
+  };
+}
+
+function reportFilePath(dbPath, row = {}) {
+  const uploadDir = reportDocumentsDir(dbPath);
+  const filePath = pathModule.resolve(uploadDir, String(row.stored_name || ''));
+  return isPathInside(uploadDir, filePath) ? filePath : '';
+}
+
+async function getQuarterlyReportById(dbPath, id) {
+  return await get(dbPath, 'SELECT * FROM quarterly_reports WHERE id=? LIMIT 1', [Number(id)]).catch(() => null);
+}
+
+async function assertQuarterlyReportAccess(dbPath, session, reportId) {
+  const row = await getQuarterlyReportById(dbPath, reportId);
+  if (!row) {
+    const error = new Error('Отчет не найден');
+    error.code = 'REPORT_NOT_FOUND';
+    throw error;
+  }
+
+  if (!canManageReportScope(session)) {
+    const currentUser = await resolveCurrentReportUser(dbPath, session);
+    if (!currentUser.id || Number(row.user_id) !== Number(currentUser.id)) {
+      const error = new Error('Отчет недоступен');
+      error.code = 'REPORT_FORBIDDEN';
+      throw error;
+    }
+  }
+
+  return row;
+}
+
+async function buildReportsSummary(dbPath, scope, year, quarter) {
+  const now = new Date();
+  const thisYear = now.getFullYear();
+  const thisMonth = now.getMonth();
+  const ownerFilter = row => isOwnedByReportScope(row, scope, ['executor', 'representative', 'user_name', 'user', 'delegated_to', 'case_executor']);
+
+  const generalRows = (await all(dbPath, 'SELECT * FROM general_cases ORDER BY id DESC LIMIT 10000', []).catch(() => []))
+    .filter(row => ownerFilter(row));
+  const activeCases = generalRows.filter(row => Number(row.archived || 0) !== 1);
+  const casesThisMonth = activeCases.filter(row => isReportDateInMonth(row.registration_date || row.created_at, thisYear, thisMonth));
+  const updatedThisMonth = activeCases.filter(row => isReportDateInMonth(row.updated_at || row.created_at, thisYear, thisMonth));
+  const judicialActCases = activeCases.filter(row => [
+    row.judicial_act_date_first,
+    row.motivated_decision_date,
+    row.appeal_act_date,
+    row.cassation_act_date
+  ].some(value => isReportDateInMonth(value, thisYear, thisMonth)));
+  const movementIds = new Set([...updatedThisMonth, ...judicialActCases].map(row => Number(row.id)).filter(Boolean));
+
+  const scheduleRows = (await all(dbPath, `
+    SELECT s.*, g.executor AS case_executor, g.case_no, g.court_no, g.claim_subject
+    FROM court_schedule s
+    LEFT JOIN general_cases g ON g.id=s.general_case_id
+    WHERE COALESCE(s.is_date_row,0)=0
+    ORDER BY s.session_date ASC, s.time ASC, s.id ASC
+    LIMIT 10000
+  `, []).catch(() => [])).filter(row => ownerFilter(row));
+  const todayHearings = scheduleRows.filter(row => isReportDateToday(row.session_date || row.hearing_date, now));
+
+  const controlledRows = (await all(dbPath, 'SELECT * FROM controlled_cases ORDER BY id DESC LIMIT 10000', []).catch(() => []))
+    .filter(row => ownerFilter(row));
+
+  const taskRows = (await all(dbPath, `
+    SELECT *
+    FROM calendar_tasks
+    ORDER BY COALESCE(date_str, "date", '') ASC, COALESCE(time_val, "time", '') ASC, id ASC
+    LIMIT 10000
+  `, []).catch(() => [])).filter(row => ownerFilter(row));
+  const openTasks = taskRows.filter(row => Number(row.done || 0) !== 1);
+  const todayTasks = taskRows.filter(row => isReportDateToday(row.date_str || row.date, now));
+  const overdueTasks = openTasks.filter(row => isReportDateOverdue(row.date_str || row.date, now));
+
+  const workloadByName = new Map();
+  for (const user of scope.selected_users || []) {
+    workloadByName.set(user.full_name, {
+      user_id: user.id,
+      user_name: user.full_name,
+      is_active: Number(user.is_active ?? 1) ? 1 : 0,
+      active_cases: 0,
+      hearings_today: 0,
+      controlled_cases: 0,
+      open_tasks: 0,
+      overdue_tasks: 0
+    });
+  }
+  const ensureWorkload = name => {
+    const key = String(name || '').trim();
+    if (!key) return null;
+    if (!workloadByName.has(key)) workloadByName.set(key, {
+      user_id: null,
+      user_name: key,
+      is_active: 1,
+      active_cases: 0,
+      hearings_today: 0,
+      controlled_cases: 0,
+      open_tasks: 0,
+      overdue_tasks: 0
+    });
+    return workloadByName.get(key);
+  };
+  activeCases.forEach(row => { const item = ensureWorkload(row.executor); if (item) item.active_cases += 1; });
+  todayHearings.forEach(row => { const item = ensureWorkload(row.representative || row.case_executor); if (item) item.hearings_today += 1; });
+  controlledRows.forEach(row => { const item = ensureWorkload(row.representative); if (item) item.controlled_cases += 1; });
+  openTasks.forEach(row => { const item = ensureWorkload(row.user_name || row.user || row.delegated_to); if (item) item.open_tasks += 1; });
+  overdueTasks.forEach(row => { const item = ensureWorkload(row.user_name || row.user || row.delegated_to); if (item) item.overdue_tasks += 1; });
+
+  const reportParams = [year, quarter];
+  let reportWhere = 'WHERE year=? AND quarter=?';
+  if (scope.selected_user_ids.length) {
+    reportWhere += ` AND user_id IN (${scope.selected_user_ids.map(() => '?').join(',')})`;
+    reportParams.push(...scope.selected_user_ids);
+  } else {
+    reportWhere += ' AND 1=0';
+  }
+  const reportRows = await all(dbPath, `
+    SELECT *
+    FROM quarterly_reports
+    ${reportWhere}
+    ORDER BY user_name, updated_at DESC, id DESC
+  `, reportParams).catch(() => []);
+  const reportUserIds = new Set(reportRows.map(row => Number(row.user_id)));
+  const employeesWithoutReport = (scope.selected_users || [])
+    .filter(user => user.id && !reportUserIds.has(Number(user.id)))
+    .map(user => ({ id: user.id, full_name: user.full_name }));
+
+  return {
+    metrics: {
+      active_cases: activeCases.length,
+      cases_this_month: casesThisMonth.length,
+      updated_this_month: updatedThisMonth.length,
+      judicial_act_cases_this_month: judicialActCases.length,
+      movement_percent: activeCases.length ? Math.round((movementIds.size / activeCases.length) * 100) : 0,
+      hearings_today: todayHearings.length,
+      controlled_cases: controlledRows.length,
+      calendar_tasks: taskRows.length,
+      open_tasks: openTasks.length,
+      overdue_tasks: overdueTasks.length,
+      quarterly_reports: reportRows.length,
+      employees_without_report: employeesWithoutReport.length
+    },
+    active_cases: activeCases.slice(0, 12).map(row => ({
+      id: row.id,
+      case_no: row.case_no || row.court_no || '',
+      court: row.court || '',
+      executor: row.executor || '',
+      subject: row.claim_subject || '',
+      registration_date: formatReportDate(row.registration_date),
+      updated_at: row.updated_at || ''
+    })),
+    hearings_today: todayHearings.slice(0, 20).map(row => ({
+      id: row.id,
+      session_date: formatReportDate(row.session_date || row.hearing_date),
+      time: row.time || '',
+      court: row.court || '',
+      representative: row.representative || row.case_executor || '',
+      case_no: row.case_no || row.court_no || '',
+      subject: row.result || row.claim_subject || ''
+    })),
+    controlled_cases: controlledRows.slice(0, 12).map(row => ({
+      id: row.id,
+      case_number: row.case_number || row.court_case_number || '',
+      representative: row.representative || '',
+      subject: row.subject || '',
+      result: row.result || '',
+      updated_at: row.updated_at || ''
+    })),
+    calendar_tasks: taskRows.slice(0, 30).map(row => ({
+      id: row.id,
+      date: formatReportDate(row.date_str || row.date),
+      time: row.time_val || row.time || '',
+      user_name: row.user_name || row.user || '',
+      type: row.task_type || row.type || '',
+      description: row.description || row.desc || row.assignment || '',
+      done: Number(row.done || 0) ? 1 : 0,
+      overdue: isReportDateOverdue(row.date_str || row.date, now) && Number(row.done || 0) !== 1 ? 1 : 0
+    })),
+    today_tasks: todayTasks.slice(0, 12).map(row => ({
+      id: row.id,
+      time: row.time_val || row.time || '',
+      user_name: row.user_name || row.user || '',
+      description: row.description || row.desc || row.assignment || '',
+      done: Number(row.done || 0) ? 1 : 0
+    })),
+    workload: [...workloadByName.values()].sort((a, b) => {
+      const statusDiff = (Number(b.is_active ?? 1) ? 1 : 0) - (Number(a.is_active ?? 1) ? 1 : 0);
+      if (statusDiff) return statusDiff;
+      const loadDiff = (
+        (b.active_cases + b.open_tasks + b.controlled_cases + b.hearings_today)
+        - (a.active_cases + a.open_tasks + a.controlled_cases + a.hearings_today)
+      );
+      if (loadDiff) return loadDiff;
+      return String(a.user_name || '').localeCompare(String(b.user_name || ''), 'ru');
+    }),
+    quarterly_reports: reportRows.map(serializeQuarterlyReport),
+    employees_without_report: employeesWithoutReport
+  };
+}
+
+async function saveQuarterlyReportDocument(dbPath, session, body = {}) {
+  const scope = await getReportScope(dbPath, session, { user_id: body.user_id || body.user_ids || '' });
+  let targetUser = scope.current_user;
+  if (canManageReportScope(session)) {
+    const requestedUserId = Number(body.user_id || 0);
+    if (!requestedUserId) {
+      const error = new Error('Не выбран сотрудник для отчета');
+      error.code = 'REPORT_USER_REQUIRED';
+      throw error;
+    }
+    targetUser = scope.selected_users.find(user => Number(user.id) === requestedUserId) || null;
+    if (!targetUser) {
+      const error = new Error('Сотрудник недоступен');
+      error.code = 'REPORT_SCOPE_FORBIDDEN';
+      throw error;
+    }
+  }
+
+  if (!targetUser?.id || !targetUser?.full_name) {
+    const error = new Error('Пользователь отчета не найден');
+    error.code = 'REPORT_USER_REQUIRED';
+    throw error;
+  }
+
+  const reportDate = body.report_date || new Date();
+  const year = normalizeReportYear(body.year, reportDate);
+  const quarter = normalizeReportQuarter(body.quarter, reportDate);
+  const originalName = sanitizeUploadedFileName(body.name || body.file_name || 'quarterly-report');
+  const ext = pathModule.extname(originalName).toLowerCase();
+  if (!REPORT_DOCUMENT_MIME[ext]) {
+    const error = new Error('Недопустимый тип файла');
+    error.code = 'REPORT_UNSUPPORTED_TYPE';
+    throw error;
+  }
+
+  const raw = String(body.data_base64 || body.content_base64 || '').replace(/^data:[^;]+;base64,/, '');
+  let bytes;
+  try { bytes = Buffer.from(raw, 'base64'); } catch { bytes = null; }
+  if (!bytes?.length) {
+    const error = new Error('Пустой файл отчета');
+    error.code = 'REPORT_EMPTY_FILE';
+    throw error;
+  }
+  if (bytes.length > MAX_REPORT_DOCUMENT_BYTES) {
+    const error = new Error('Файл отчета превышает 100 МБ');
+    error.code = 'REPORT_FILE_TOO_LARGE';
+    throw error;
+  }
+
+  const uploadDir = reportDocumentsDir(dbPath);
+  fs.mkdirSync(uploadDir, { recursive: true });
+  const storedName = `${targetUser.id}-${year}-q${quarter}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`;
+  const filePath = pathModule.join(uploadDir, storedName);
+  fs.writeFileSync(filePath, bytes);
+
+  const existing = await get(dbPath, 'SELECT id FROM quarterly_reports WHERE user_id=? AND year=? AND quarter=?', [targetUser.id, year, quarter]).catch(() => null);
+  const now = new Date().toISOString();
+  if (existing) {
+    await run(dbPath, `
+      UPDATE quarterly_reports
+      SET user_name=?, original_name=?, stored_name=?, mime_type=?, size_bytes=?,
+          uploaded_by=?, uploaded_by_name=?, updated_at=?
+      WHERE id=?
+    `, [
+      targetUser.full_name,
+      originalName,
+      storedName,
+      REPORT_DOCUMENT_MIME[ext],
+      bytes.length,
+      session?.id || null,
+      session?.full_name || '',
+      now,
+      existing.id
+    ]);
+    return await getQuarterlyReportById(dbPath, existing.id);
+  }
+
+  const result = await run(dbPath, `
+    INSERT INTO quarterly_reports (
+      user_id, user_name, year, quarter, original_name, stored_name, mime_type,
+      size_bytes, uploaded_by, uploaded_by_name, created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [
+    targetUser.id,
+    targetUser.full_name,
+    year,
+    quarter,
+    originalName,
+    storedName,
+    REPORT_DOCUMENT_MIME[ext],
+    bytes.length,
+    session?.id || null,
+    session?.full_name || '',
+    now,
+    now
+  ]);
+  return await getQuarterlyReportById(dbPath, result.id);
 }
 
 function convertWordDocumentToPdf(inputPath, outputPath) {
@@ -744,11 +1838,8 @@ async function getRequestSession(req, dbPath) {
   const token = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : header;
   if (!token) return null;
 
-  const cached = activeSessions.get(token);
-  if (cached) return cached;
-
   const row = await get(dbPath, `
-    SELECT user_id AS id, full_name, is_admin, expires_at
+    SELECT user_id AS id, full_name, role_level, permissions_json, expires_at
     FROM app_sessions
     WHERE token=?
     LIMIT 1
@@ -761,18 +1852,22 @@ async function getRequestSession(req, dbPath) {
     return null;
   }
 
-  const session = {
-    id: row.id || null,
-    full_name: row.full_name || 'Пользователь',
-    is_admin: Number(row.is_admin || 0) === 1
-  };
-  activeSessions.set(token, session);
-  return session;
+  const user = row.id
+    ? await get(dbPath, 'SELECT * FROM users WHERE id=? AND COALESCE(is_active,1)=1 LIMIT 1', [row.id]).catch(() => null)
+    : await get(dbPath, 'SELECT * FROM users WHERE full_name=? AND COALESCE(is_active,1)=1 LIMIT 1', [row.full_name]).catch(() => null);
+  if (row.id && !user) {
+    await run(dbPath, 'DELETE FROM app_sessions WHERE token=?', [token]).catch(() => {});
+    activeSessions.delete(token);
+    return null;
+  }
+  const activeSession = await buildSessionFromUser(dbPath, user || row);
+  activeSessions.set(token, activeSession);
+  return activeSession;
 }
 
 function canEditCalendarTask(session, row) {
   if (!session || !row) return false;
-  if (session.is_admin) return true;
+  if (hasPermission(session, PERMISSIONS.CALENDAR_EDIT_ANY)) return true;
   return String(row.user_name || row.user || '') === String(session.full_name || '');
 }
 
@@ -849,6 +1944,62 @@ function getDeadlineLabel(description = '') {
 function notificationCaseLabel(row = {}) {
   const value = row.case_no || row.court_no || row.subject || '';
   return value ? `№${String(value).replace(/^№\s*/, '')}` : 'без номера';
+}
+
+function parseJsonArraySafe(value) {
+  try {
+    const parsed = JSON.parse(value || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function stringifyHistory(history = []) {
+  return JSON.stringify(Array.isArray(history) ? history.slice(-80) : []);
+}
+
+function appendApprovalHistory(row = {}, action, actor, comment = '') {
+  const history = parseJsonArraySafe(row.history_json);
+  history.push({
+    action,
+    actor: actor || '',
+    comment: comment || '',
+    at: new Date().toISOString()
+  });
+  return stringifyHistory(history);
+}
+
+function canReviewGeneralCaseApproval(session) {
+  return hasPermission(session, PERMISSIONS.CASES_EDIT_ANY);
+}
+
+function canRequestGeneralCaseApproval(session, generalCase) {
+  return canEditGeneralCase(session, generalCase);
+}
+
+function normalizeApprovalStatus(status = '') {
+  const value = String(status || '').trim();
+  return ['draft', 'pending', 'revision_required', 'approved', 'completed'].includes(value)
+    ? value
+    : 'draft';
+}
+
+function approvalResponse(row = {}) {
+  return {
+    ...row,
+    status: normalizeApprovalStatus(row.status),
+    history: parseJsonArraySafe(row.history_json)
+  };
+}
+
+function findReviewDocument(documents = [], documentPath = '', documentIndex = null) {
+  if (Number.isInteger(documentIndex) && documents[documentIndex]) return documents[documentIndex];
+  const targetPath = String(documentPath || '').trim();
+  if (targetPath) {
+    return documents.find(doc => String(doc.path || '').trim() === targetPath) || null;
+  }
+  return documents.find(doc => /отзыв|review/i.test(String(`${doc.type || ''} ${doc.name || ''}`))) || documents[0] || null;
 }
 
 async function buildUserNotifications(dbPath, session) {
@@ -936,7 +2087,7 @@ async function buildUserNotifications(dbPath, session) {
 
   const staleParams = [];
   let staleWhere = 'COALESCE(control_flag, 0)=1';
-  if (!session.is_admin) {
+  if (!hasPermission(session, PERMISSIONS.CASES_VIEW_ANY)) {
     staleWhere += ` AND COALESCE(executor, '')=?`;
     staleParams.push(userName);
   }
@@ -964,6 +2115,45 @@ async function buildUserNotifications(dbPath, session) {
       source_type: 'general_case',
       source_id: row.id,
       general_case_id: row.id
+    });
+  }
+
+  const approvalRows = await all(dbPath, `
+    SELECT a.*, g.case_no, g.court_no
+    FROM general_case_review_approvals a
+    LEFT JOIN general_cases g ON g.id=a.general_case_id
+    WHERE COALESCE(a.status, '') IN ('pending', 'revision_required', 'approved')
+      AND (
+        COALESCE(a.requester_name, '')=?
+        OR COALESCE(a.reviewer_name, '')=?
+        OR (?=1 AND COALESCE(a.status, '')='pending')
+      )
+    ORDER BY a.updated_at DESC, a.id DESC
+    LIMIT 300
+  `, [userName, userName, canReviewGeneralCaseApproval(session) ? 1 : 0]).catch(() => []);
+
+  for (const row of approvalRows) {
+    const status = normalizeApprovalStatus(row.status);
+    const caseLabel = notificationCaseLabel(row);
+    const documentName = row.document_name || 'document';
+    const isReviewerTask = status === 'pending' && canReviewGeneralCaseApproval(session);
+    const isRequesterTask = isSameUserName(row.requester_name, userName);
+    if (!isReviewerTask && !isRequesterTask) continue;
+    notifications.push({
+      key: `review-approval:${row.id}:${status}:${row.updated_at || ''}`,
+      status: status === 'pending' || status === 'revision_required' ? 'active' : 'done',
+      severity: 'review',
+      title: status === 'pending'
+        ? 'Review approval requested'
+        : (status === 'revision_required' ? 'Review requires revision' : 'Review approved'),
+      message: status === 'pending'
+        ? `${row.requester_name || 'User'} requests review approval for ${caseLabel}: ${documentName}.`
+        : `Review for ${caseLabel}: ${documentName} changed status to ${status}.`,
+      due_at: row.updated_at || row.created_at || new Date().toISOString(),
+      source_type: 'general_case_review_approval',
+      source_id: row.id,
+      general_case_id: row.general_case_id || null,
+      approval_status: status
     });
   }
 
@@ -1109,6 +2299,9 @@ async function handleApiRequest(req, res, parsedUrl, dbPath) {
   try {
     await ensureSchema(dbPath);
 
+    const accessSession = await enforceApiAccess(req, res, dbPath, path, req.method);
+    if (accessSession === false) return true;
+
 
     // MEETING_PARTICIPANTS_ROUTE_PATCHED
     if (path === '/api/meeting-participants' && req.method === 'GET') {
@@ -1153,7 +2346,7 @@ if (path === '/api/meetings' && req.method === 'POST') {
       telegram_sign_fio, protocol_number, protocol_chair_fio, protocol_chair_position,
       agenda_sign_position, agenda_sign_fio, created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     d.title, d.date_val, d.time_val, d.agenda, d.protocol, d.participants, d.invited_participants,
     d.attachment_path, d.attachment_type, d.has_participants_list, d.has_telegram, d.protocol_keeper,
@@ -1205,27 +2398,41 @@ if (meetingsMatchSourcePort) {
         return true;
       }
 
-      const user = await get(dbPath, 'SELECT * FROM users WHERE password=? LIMIT 1', [password]).catch(() => null);
+      const candidates = await all(dbPath, 'SELECT * FROM users WHERE COALESCE(is_active,1)=1 ORDER BY id', []).catch(() => []);
+      let user = candidates.find(row => verifyPassword(password, row)) || null;
 
       if (!user) {
         sendJson(res, 401, { error: 'invalid_password' });
         return true;
       }
 
-      const isAdmin = Number(user.is_admin || user.admin || 0) === 1 || String(user.role || '').toLowerCase() === 'admin';
+      if (!user.password_hash || user.password_scheme !== 'scrypt') {
+        const credentials = makePasswordCredentials(password);
+        await run(dbPath, `
+          UPDATE users
+          SET password_hash=?, password_salt=?, password_scheme=?, password=?
+          WHERE id=?
+        `, [credentials.hash, credentials.salt, credentials.scheme, `__migrated_password_${user.id}__`, user.id]);
+        user = { ...user, password_hash: credentials.hash, password_salt: credentials.salt, password_scheme: credentials.scheme, password: `__migrated_password_${user.id}__` };
+      }
 
       const token = crypto.randomBytes(32).toString('hex');
+      const builtSession = await buildSessionFromUser(dbPath, user);
       const session = {
-        id: user.id || null,
+        id: builtSession.id,
         full_name: user.full_name || user.name || 'Пользователь',
-        is_admin: isAdmin
+        is_admin: builtSession.is_admin,
+        role_level: builtSession.role_level,
+        role_name: builtSession.role_name,
+        permissions: builtSession.permissions,
+        individual_permissions: builtSession.individual_permissions
       };
       activeSessions.set(token, session);
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
       await run(dbPath, `
-        INSERT OR REPLACE INTO app_sessions (token, user_id, full_name, is_admin, created_at, expires_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `, [token, session.id, session.full_name, session.is_admin ? 1 : 0, new Date().toISOString(), expiresAt]);
+        INSERT OR REPLACE INTO app_sessions (token, user_id, full_name, is_admin, role_level, permissions_json, created_at, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `, [token, session.id, session.full_name, session.is_admin ? 1 : 0, session.role_level, JSON.stringify(session.permissions || []), new Date().toISOString(), expiresAt]);
       await run(dbPath, "DELETE FROM app_sessions WHERE expires_at<>'' AND expires_at<?", [new Date().toISOString()]).catch(() => {});
 
       sendJson(res, 200, {
@@ -1248,6 +2455,329 @@ if (meetingsMatchSourcePort) {
     }
 
     if (path === '/api/health') { sendJson(res, 200, { ok: true, dbPath }); return true; }
+
+    if (path === '/api/auth/me' && req.method === 'GET') {
+      const session = await getRequestSession(req, dbPath);
+      if (!session) {
+        sendJson(res, 401, { error: 'auth_required' });
+        return true;
+      }
+      const header = String(req.headers?.authorization || req.headers?.['x-session-token'] || '').trim();
+      const token = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : header;
+      sendJson(res, 200, { ...session, token });
+      return true;
+    }
+
+    if (path === '/api/admin/users' && req.method === 'GET') {
+      sendJson(res, 200, await listUsersForAdmin(dbPath));
+      return true;
+    }
+
+    if (path === '/api/admin/users' && req.method === 'POST') {
+      const body = await readBody(req);
+      const fullName = String(body.full_name || '').trim();
+      const password = String(body.password || '').trim();
+      const roleLevel = parseRoleLevel(body.role_level ?? ROLE_LEVELS.PARTICIPANT);
+      const individualPermissions = normalizeIndividualPermissions(body.individual_permissions || body.permissions || []);
+      if (!hasPermission(accessSession, PERMISSIONS.USERS_CREATE)) {
+        sendJson(res, 403, { error: 'forbidden', permission: PERMISSIONS.USERS_CREATE });
+        return true;
+      }
+      if (!roleLevel) {
+        sendJson(res, 400, { error: 'invalid_role_level' });
+        return true;
+      }
+      if (!fullName || !password) {
+        sendJson(res, 400, { error: 'full_name_and_password_required' });
+        return true;
+      }
+      if (roleLevel >= ROLE_LEVELS.TECH_ADMIN && !hasPermission(accessSession, PERMISSIONS.TECH_ADMIN_ASSIGN)) {
+        sendJson(res, 403, { error: 'tech_admin_role_forbidden' });
+        return true;
+      }
+      if (individualPermissions.length && !hasPermission(accessSession, PERMISSIONS.PERMISSIONS_MANAGE)) {
+        sendJson(res, 403, { error: 'forbidden', permission: PERMISSIONS.PERMISSIONS_MANAGE });
+        return true;
+      }
+      const credentials = makePasswordCredentials(password);
+      const result = await run(dbPath, `
+        INSERT INTO users (full_name, password, password_hash, password_salt, password_scheme, is_admin, role_level, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `, [fullName, `__migrated_password_${Date.now()}_${crypto.randomBytes(4).toString('hex')}__`, credentials.hash, credentials.salt, credentials.scheme, roleLevel >= ROLE_LEVELS.MAIN_ADMIN ? 1 : 0, roleLevel, Number(body.is_active ?? 1) ? 1 : 0]);
+      await replaceUserPermissions(dbPath, result.id, individualPermissions, accessSession?.id || null);
+      sendJson(res, 201, (await listUsersForAdmin(dbPath)).find(user => Number(user.id) === Number(result.id)));
+      return true;
+    }
+
+    const adminUserMatch = path.match(/^\/api\/admin\/users\/(\d+)$/);
+    if (adminUserMatch && req.method === 'PUT') {
+      const id = Number(adminUserMatch[1]);
+      const existing = await get(dbPath, 'SELECT * FROM users WHERE id=?', [id]);
+      if (!existing) {
+        sendJson(res, 404, { error: 'user_not_found' });
+        return true;
+      }
+      const body = await readBody(req);
+      const fullName = String(body.full_name || existing.full_name || '').trim();
+      const roleLevel = parseRoleLevel(body.role_level ?? existing.role_level);
+      const isActive = Number(body.is_active ?? existing.is_active ?? 1) ? 1 : 0;
+      const existingRoleLevel = normalizeRoleLevel(existing.role_level);
+      const individualPermissions = normalizeIndividualPermissions(body.individual_permissions || body.permissions || []);
+      if (!hasPermission(accessSession, PERMISSIONS.USERS_UPDATE)) {
+        sendJson(res, 403, { error: 'forbidden', permission: PERMISSIONS.USERS_UPDATE });
+        return true;
+      }
+      if (!roleLevel) {
+        sendJson(res, 400, { error: 'invalid_role_level' });
+        return true;
+      }
+      if ((existingRoleLevel >= ROLE_LEVELS.TECH_ADMIN || roleLevel >= ROLE_LEVELS.TECH_ADMIN) && !hasPermission(accessSession, PERMISSIONS.TECH_ADMIN_ASSIGN)) {
+        sendJson(res, 403, { error: 'tech_admin_role_forbidden' });
+        return true;
+      }
+      if (individualPermissions.length && !hasPermission(accessSession, PERMISSIONS.PERMISSIONS_MANAGE)) {
+        sendJson(res, 403, { error: 'forbidden', permission: PERMISSIONS.PERMISSIONS_MANAGE });
+        return true;
+      }
+      if (existingRoleLevel >= ROLE_LEVELS.TECH_ADMIN && (roleLevel < ROLE_LEVELS.TECH_ADMIN || !isActive) && await isLastActiveTechAdmin(dbPath, id)) {
+        sendJson(res, 400, { error: 'last_tech_admin_required' });
+        return true;
+      }
+      const password = String(body.password || '').trim();
+      if (password && !hasPermission(accessSession, PERMISSIONS.USERS_RESET_PASSWORD)) {
+        sendJson(res, 403, { error: 'forbidden', permission: PERMISSIONS.USERS_RESET_PASSWORD });
+        return true;
+      }
+      await run(dbPath, 'UPDATE users SET full_name=?, is_admin=?, role_level=?, is_active=? WHERE id=?', [
+        fullName,
+        roleLevel >= ROLE_LEVELS.MAIN_ADMIN ? 1 : 0,
+        roleLevel,
+        isActive,
+        id
+      ]);
+      if (password) {
+        const credentials = makePasswordCredentials(password);
+        await run(dbPath, "UPDATE users SET password=?, password_hash=?, password_salt=?, password_scheme=? WHERE id=?", [`__migrated_password_${id}__`, credentials.hash, credentials.salt, credentials.scheme, id]);
+      }
+      await replaceUserPermissions(dbPath, id, individualPermissions, accessSession?.id || null);
+      activeSessions.clear();
+      sendJson(res, 200, (await listUsersForAdmin(dbPath)).find(user => Number(user.id) === id));
+      return true;
+    }
+
+    if (path === '/api/admin/options' && req.method === 'GET') {
+      sendJson(res, 200, await listDictionaryOptions(dbPath));
+      return true;
+    }
+
+    if (path === '/api/admin/options' && req.method === 'POST') {
+      const body = await readBody(req);
+      const parsedId = parseAdminDictionaryId(body.id);
+      const category = String(body.category || '').trim();
+      const value = String(body.value || '').trim();
+      const position = String(body.position || '').trim();
+      const leadership = String(body.leadership || '').trim();
+      const isLeadership = Number(body.is_leadership ?? 1) ? 1 : 0;
+      if (!category || !value) {
+        sendJson(res, 400, { error: 'category_and_value_required' });
+        return true;
+      }
+
+      if (isMeetingParticipantDictionaryCategory(category)) {
+        if (!position) {
+          sendJson(res, 400, { error: 'position_required' });
+          return true;
+        }
+        if (parsedId.id && parsedId.type !== 'meeting') {
+          sendJson(res, 400, { error: 'invalid_option_id' });
+          return true;
+        }
+        if (parsedId.id) {
+          const existing = await get(dbPath, 'SELECT id FROM meeting_participants WHERE id=?', [parsedId.id]);
+          if (!existing) {
+            sendJson(res, 404, { error: 'option_not_found' });
+            return true;
+          }
+          await run(dbPath, 'UPDATE meeting_participants SET category=?, full_name=?, position=?, leadership=?, is_leadership=? WHERE id=?', [category, value, position, leadership, isLeadership, parsedId.id]);
+          sendJson(res, 200, await getMeetingParticipantDictionaryRow(dbPath, parsedId.id));
+          return true;
+        }
+        const existing = await get(dbPath, 'SELECT id FROM meeting_participants WHERE category=? AND full_name=? LIMIT 1', [category, value]);
+        if (existing) {
+          await run(dbPath, 'UPDATE meeting_participants SET position=?, leadership=?, is_leadership=? WHERE id=?', [position, leadership, isLeadership, existing.id]);
+          sendJson(res, 200, await getMeetingParticipantDictionaryRow(dbPath, existing.id));
+          return true;
+        }
+        const result = await run(dbPath, 'INSERT INTO meeting_participants (category, full_name, position, leadership, is_leadership, sort_order) VALUES (?, ?, ?, ?, ?, ?)', [category, value, position, leadership, isLeadership, 999]);
+        sendJson(res, 201, await getMeetingParticipantDictionaryRow(dbPath, result.id));
+        return true;
+      }
+
+      if (parsedId.id) {
+        if (parsedId.type !== 'option') {
+          sendJson(res, 400, { error: 'invalid_option_id' });
+          return true;
+        }
+        const existing = await get(dbPath, 'SELECT id FROM app_options WHERE id=?', [parsedId.id]);
+        if (!existing) {
+          sendJson(res, 404, { error: 'option_not_found' });
+          return true;
+        }
+        await run(dbPath, 'UPDATE app_options SET category=?, value=? WHERE id=?', [category, value, parsedId.id]);
+        const row = await get(dbPath, 'SELECT id, category, value FROM app_options WHERE id=?', [parsedId.id]);
+        sendJson(res, 200, { ...row, id: String(row.id) });
+        return true;
+      }
+      const result = await run(dbPath, 'INSERT OR IGNORE INTO app_options (category, value) VALUES (?, ?)', [category, value]);
+      const row = result.changes
+        ? await get(dbPath, 'SELECT id, category, value FROM app_options WHERE id=?', [result.id])
+        : await get(dbPath, 'SELECT id, category, value FROM app_options WHERE category=? AND value=?', [category, value]);
+      sendJson(res, result.changes ? 201 : 200, { ...row, id: String(row.id) });
+      return true;
+    }
+
+    const adminOptionMatch = path.match(/^\/api\/admin\/options\/([^/]+)$/);
+    if (adminOptionMatch && req.method === 'DELETE') {
+      const parsedId = parseAdminDictionaryId(decodeURIComponent(adminOptionMatch[1]));
+      if (parsedId.type === 'meeting') {
+        const option = await get(dbPath, 'SELECT id, category, full_name AS value FROM meeting_participants WHERE id=?', [parsedId.id]);
+        if (!option) {
+          sendJson(res, 404, { error: 'option_not_found' });
+          return true;
+        }
+        if (await isMeetingParticipantValueUsed(dbPath, option.category, option.value)) {
+          sendJson(res, 409, { error: 'option_in_use' });
+          return true;
+        }
+        await run(dbPath, 'DELETE FROM meeting_participants WHERE id=?', [parsedId.id]);
+        sendJson(res, 200, { ok: true });
+        return true;
+      }
+
+      const id = parsedId.id;
+      const option = await get(dbPath, 'SELECT id, category, value FROM app_options WHERE id=?', [id]);
+      if (!option) {
+        sendJson(res, 404, { error: 'option_not_found' });
+        return true;
+      }
+      if (await isOptionValueUsed(dbPath, option.category, option.value)) {
+        sendJson(res, 409, { error: 'option_in_use' });
+        return true;
+      }
+      await run(dbPath, 'DELETE FROM app_options WHERE id=?', [id]);
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+
+    if (path === '/api/reports/summary' && req.method === 'GET') {
+      const session = accessSession || await getRequestSession(req, dbPath);
+      const reportDate = parsedUrl.searchParams.get('report_date') || new Date();
+      const year = normalizeReportYear(parsedUrl.searchParams.get('year'), reportDate);
+      const quarter = normalizeReportQuarter(parsedUrl.searchParams.get('quarter'), reportDate);
+      const scope = await getReportScope(dbPath, session, {
+        user_ids: parsedUrl.searchParams.get('user_ids') || parsedUrl.searchParams.get('user_id') || '',
+        scope: parsedUrl.searchParams.get('scope') || '',
+        all: parsedUrl.searchParams.get('all') || ''
+      });
+      const summary = await buildReportsSummary(dbPath, scope, year, quarter);
+      sendJson(res, 200, {
+        ok: true,
+        updated_at: new Date().toISOString(),
+        year,
+        quarter,
+        scope: {
+          can_manage_all: scope.can_manage_all,
+          current_user: scope.current_user,
+          selected_users: scope.selected_users,
+          available_users: scope.can_manage_all ? scope.available_users : []
+        },
+        ...summary
+      });
+      return true;
+    }
+
+    if (path === '/api/reports/users' && req.method === 'GET') {
+      const session = accessSession || await getRequestSession(req, dbPath);
+      if (!canManageReportScope(session)) {
+        const currentUser = await resolveCurrentReportUser(dbPath, session);
+        sendJson(res, 200, { can_manage_all: false, users: currentUser.full_name ? [currentUser] : [] });
+        return true;
+      }
+      sendJson(res, 200, { can_manage_all: true, users: await listReportUsers(dbPath) });
+      return true;
+    }
+
+    if (path === '/api/reports/quarterly' && req.method === 'GET') {
+      const session = accessSession || await getRequestSession(req, dbPath);
+      const reportDate = parsedUrl.searchParams.get('report_date') || new Date();
+      const year = normalizeReportYear(parsedUrl.searchParams.get('year'), reportDate);
+      const quarter = normalizeReportQuarter(parsedUrl.searchParams.get('quarter'), reportDate);
+      const scope = await getReportScope(dbPath, session, {
+        user_ids: parsedUrl.searchParams.get('user_ids') || parsedUrl.searchParams.get('user_id') || '',
+        scope: parsedUrl.searchParams.get('scope') || '',
+        all: parsedUrl.searchParams.get('all') || ''
+      });
+      const params = [year, quarter];
+      let whereSql = 'WHERE year=? AND quarter=?';
+      if (scope.selected_user_ids.length) {
+        whereSql += ` AND user_id IN (${scope.selected_user_ids.map(() => '?').join(',')})`;
+        params.push(...scope.selected_user_ids);
+      } else {
+        whereSql += ' AND 1=0';
+      }
+      const rows = await all(dbPath, `
+        SELECT *
+        FROM quarterly_reports
+        ${whereSql}
+        ORDER BY user_name, updated_at DESC, id DESC
+      `, params).catch(() => []);
+      const reportUserIds = new Set(rows.map(row => Number(row.user_id)));
+      sendJson(res, 200, {
+        ok: true,
+        year,
+        quarter,
+        reports: rows.map(serializeQuarterlyReport),
+        employees_without_report: (scope.selected_users || [])
+          .filter(user => user.id && !reportUserIds.has(Number(user.id)))
+          .map(user => ({ id: user.id, full_name: user.full_name }))
+      });
+      return true;
+    }
+
+    if (path === '/api/reports/quarterly' && req.method === 'POST') {
+      const session = accessSession || await getRequestSession(req, dbPath);
+      const body = await readBody(req, { maxBytes: MAX_REPORT_DOCUMENT_BODY_BYTES });
+      const row = await saveQuarterlyReportDocument(dbPath, session, body);
+      sendJson(res, 201, { ok: true, report: serializeQuarterlyReport(row) });
+      return true;
+    }
+
+    const reportDownloadMatch = path.match(/^\/api\/reports\/quarterly\/(\d+)\/download$/);
+    if (reportDownloadMatch && req.method === 'GET') {
+      const session = accessSession || await getRequestSession(req, dbPath);
+      const row = await assertQuarterlyReportAccess(dbPath, session, Number(reportDownloadMatch[1]));
+      const filePath = reportFilePath(dbPath, row);
+      if (!filePath) {
+        sendJson(res, 404, { error: 'file_not_found' });
+        return true;
+      }
+      streamReportFile(res, filePath, row.mime_type || '', 'attachment');
+      return true;
+    }
+
+    const reportOpenMatch = path.match(/^\/api\/reports\/quarterly\/(\d+)\/open$/);
+    if (reportOpenMatch && req.method === 'POST') {
+      const session = accessSession || await getRequestSession(req, dbPath);
+      const row = await assertQuarterlyReportAccess(dbPath, session, Number(reportOpenMatch[1]));
+      const filePath = reportFilePath(dbPath, row);
+      if (!filePath || !fs.existsSync(filePath)) {
+        sendJson(res, 404, { error: 'file_not_found' });
+        return true;
+      }
+      await openFileWithSystem(filePath);
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
 
     if (path === '/api/general-case-files' && req.method === 'POST') {
       const session = await getRequestSession(req, dbPath);
@@ -1384,18 +2914,30 @@ if (meetingsMatchSourcePort) {
       sendJson(res, 200, rows.map(r => r.value)); return true;
     }
     if (path === '/api/general-cases' && req.method === 'GET') {
+      const session = await getRequestSession(req, dbPath);
       const archived = parsedUrl.searchParams.get('archived') === '1';
       const search = (parsedUrl.searchParams.get('search') || '').trim();
       const table = archived ? 'general_cases_archive' : 'general_cases';
       const cols = ['case_no','court_no','court','judge','executor','category','procedural_position','claim_subject','claim_address','registration_date','review_result','plaintiff','defendant','comments','judicial_act_date_first','first_instance_act_type','motivated_decision_date','appeal_act_date','cassation_act_date','documents_json','process_kind','act_instance','proceeding_form','appeal_kind','order_copy_date','apk_cassation_has_appeal','supervision_cassation_exhausted','late_motivated_received','appeals_json','emergency_fund_flag','registry_flag'];
-      const where = search ? 'WHERE ' + cols.map(c => `LOWER(COALESCE(${c},'')) LIKE LOWER(?)`).join(' OR ') : '';
-      const params = search ? cols.map(() => `%${search}%`) : [];
+      const whereParts = [];
+      const params = [];
+      if (search) {
+        whereParts.push('(' + cols.map(c => `LOWER(COALESCE(${c},'')) LIKE LOWER(?)`).join(' OR ') + ')');
+        params.push(...cols.map(() => `%${search}%`));
+      }
+      if (!hasPermission(session, PERMISSIONS.CASES_VIEW_ANY)) {
+        whereParts.push(`COALESCE(executor,'')=?`);
+        params.push(session.full_name);
+      }
+      const where = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
       const rows = await all(dbPath, `SELECT * FROM ${table} ${where} ORDER BY id DESC LIMIT 2000`, params);
       sendJson(res, 200, rows); return true;
     }
     if (path === '/api/general-cases' && req.method === 'POST') {
+      const session = await getRequestSession(req, dbPath);
       const rawGeneralBody = await readBody(req);
       const d = normCase(rawGeneralBody);
+      if (!hasPermission(session, PERMISSIONS.CASES_EDIT_ANY)) d.executor = session.full_name;
       const result = await run(dbPath, `INSERT INTO general_cases (case_no,court_no,court,judge,executor,category,procedural_position,claim_subject,claim_address,registration_date,review_result,control_flag,attendance_flag,attendance_hearing_missing,review_show_flag,emergency_fund_flag,registry_flag,comments,judicial_act_date_first,first_instance_act_type,motivated_decision_date,appeal_act_date,cassation_act_date,documents_json,process_kind,act_instance,proceeding_form,appeal_kind,order_copy_date,apk_cassation_has_appeal,supervision_cassation_exhausted,late_motivated_received,appeals_json,created_at,updated_at,plaintiff,defendant) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [d.case_no,d.court_no,d.court,d.judge,d.executor,d.category,d.procedural_position,d.claim_subject,d.claim_address,d.registration_date,d.review_result,d.control_flag,d.attendance_flag,d.attendance_hearing_missing,d.review_show_flag,d.emergency_fund_flag,d.registry_flag,d.comments,d.judicial_act_date_first,d.first_instance_act_type,d.motivated_decision_date,d.appeal_act_date,d.cassation_act_date,d.documents_json,d.process_kind,d.act_instance,d.proceeding_form,d.appeal_kind,d.order_copy_date,d.apk_cassation_has_appeal,d.supervision_cassation_exhausted,d.late_motivated_received,d.appeals_json,new Date().toISOString(),new Date().toISOString(),d.plaintiff,d.defendant]);
       if (!rawGeneralBody.skip_linked) await syncLinked(dbPath, result.id, d);
       sendJson(res, 201, await get(dbPath, 'SELECT * FROM general_cases WHERE id=?', [result.id])); return true;
@@ -1518,6 +3060,139 @@ if (meetingsMatchSourcePort) {
       return true;
     }
 
+    const reviewApprovalListMatch = path.match(/^\/api\/general-cases\/(\d+)\/review-approval$/);
+    if (reviewApprovalListMatch && req.method === 'GET') {
+      const session = await getRequestSession(req, dbPath);
+      const id = Number(reviewApprovalListMatch[1]);
+      const row = await get(dbPath, 'SELECT * FROM general_cases WHERE id=?', [id]);
+      if (!row) { sendJson(res, 404, { error: 'general_case_not_found' }); return true; }
+      if (!hasPermission(session, PERMISSIONS.CASES_VIEW_ANY) && !isOwnGeneralCase(session, row)) {
+        sendJson(res, 403, { error: 'forbidden' });
+        return true;
+      }
+      const approvals = await all(dbPath, 'SELECT * FROM general_case_review_approvals WHERE general_case_id=? ORDER BY updated_at DESC, id DESC', [id]);
+      sendJson(res, 200, { items: approvals.map(approvalResponse) });
+      return true;
+    }
+
+    const reviewApprovalRequestMatch = path.match(/^\/api\/general-cases\/(\d+)\/review-approval\/request$/);
+    if (reviewApprovalRequestMatch && req.method === 'POST') {
+      const session = await getRequestSession(req, dbPath);
+      const id = Number(reviewApprovalRequestMatch[1]);
+      const body = await readBody(req);
+      const row = await get(dbPath, 'SELECT * FROM general_cases WHERE id=?', [id]);
+      if (!row) { sendJson(res, 404, { error: 'general_case_not_found' }); return true; }
+      if (!canRequestGeneralCaseApproval(session, row)) {
+        sendJson(res, 403, { error: 'forbidden' });
+        return true;
+      }
+      if (Number(row.review_show_flag || 0) !== 1) {
+        sendJson(res, 400, { error: 'review_flag_required', message: 'Review approval is available only for cases marked as review.' });
+        return true;
+      }
+      const documents = parseJsonArraySafe(row.documents_json);
+      const requestedIndex = Number(body.document_index);
+      const doc = findReviewDocument(
+        documents,
+        body.document_path,
+        Number.isInteger(requestedIndex) ? requestedIndex : null
+      );
+      if (!doc || !String(doc.path || '').trim()) {
+        sendJson(res, 400, { error: 'review_document_required', message: 'Attach a review document before sending approval request.' });
+        return true;
+      }
+      const reviewer = String(body.reviewer_name || '').trim()
+        || (await get(dbPath, 'SELECT full_name FROM users WHERE COALESCE(is_active,1)=1 AND COALESCE(role_level,1)>=3 ORDER BY role_level DESC, id ASC LIMIT 1').catch(() => null))?.full_name
+        || '';
+      const now = new Date().toISOString();
+      const existing = await get(dbPath, 'SELECT * FROM general_case_review_approvals WHERE general_case_id=? AND document_path=? LIMIT 1', [id, doc.path]);
+      const comment = String(body.comment || '').trim();
+      if (existing) {
+        const historyJson = appendApprovalHistory(existing, 'request', session.full_name, comment);
+        await run(dbPath, `
+          UPDATE general_case_review_approvals
+          SET document_name=?, document_type=?, requester_name=?, reviewer_name=?, status='pending',
+              request_comment=?, history_json=?, updated_at=?, approved_at='', completed_at=''
+          WHERE id=?
+        `, [doc.name || '', doc.type || '', session.full_name, reviewer, comment, historyJson, now, existing.id]);
+        sendJson(res, 200, approvalResponse(await get(dbPath, 'SELECT * FROM general_case_review_approvals WHERE id=?', [existing.id])));
+        return true;
+      }
+      const historyJson = stringifyHistory([{ action: 'request', actor: session.full_name, comment, at: now }]);
+      const result = await run(dbPath, `
+        INSERT INTO general_case_review_approvals (
+          general_case_id, document_path, document_name, document_type, requester_name,
+          reviewer_name, status, request_comment, history_json, created_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
+      `, [id, doc.path, doc.name || '', doc.type || '', session.full_name, reviewer, comment, historyJson, now, now]);
+      sendJson(res, 201, approvalResponse(await get(dbPath, 'SELECT * FROM general_case_review_approvals WHERE id=?', [result.id])));
+      return true;
+    }
+
+    const reviewApprovalActionMatch = path.match(/^\/api\/general-cases\/(\d+)\/review-approval\/(\d+)\/(comment|revision|approve|court-sent)$/);
+    if (reviewApprovalActionMatch && req.method === 'POST') {
+      const session = await getRequestSession(req, dbPath);
+      const caseId = Number(reviewApprovalActionMatch[1]);
+      const approvalId = Number(reviewApprovalActionMatch[2]);
+      const action = reviewApprovalActionMatch[3];
+      const body = await readBody(req);
+      const row = await get(dbPath, 'SELECT * FROM general_cases WHERE id=?', [caseId]);
+      const approval = await get(dbPath, 'SELECT * FROM general_case_review_approvals WHERE id=? AND general_case_id=?', [approvalId, caseId]);
+      if (!row) { sendJson(res, 404, { error: 'general_case_not_found' }); return true; }
+      if (!approval) { sendJson(res, 404, { error: 'approval_not_found' }); return true; }
+
+      const isRequester = isSameUserName(approval.requester_name, session.full_name);
+      const isReviewer = canReviewGeneralCaseApproval(session);
+      if (!isRequester && !isReviewer) {
+        sendJson(res, 403, { error: 'forbidden' });
+        return true;
+      }
+
+      const now = new Date().toISOString();
+      const comment = String(body.comment || '').trim();
+      const markedFilePath = String(body.marked_file_path || approval.marked_file_path || '').trim();
+      let nextStatus = normalizeApprovalStatus(approval.status);
+      let approvedAt = approval.approved_at || '';
+      let completedAt = approval.completed_at || '';
+
+      if (action === 'revision') {
+        if (!isReviewer) { sendJson(res, 403, { error: 'manager_required' }); return true; }
+        nextStatus = 'revision_required';
+      } else if (action === 'approve') {
+        if (!isReviewer) { sendJson(res, 403, { error: 'manager_required' }); return true; }
+        nextStatus = 'approved';
+        approvedAt = now;
+      } else if (action === 'court-sent') {
+        if (!isRequester && !isReviewer) { sendJson(res, 403, { error: 'forbidden' }); return true; }
+        if (normalizeApprovalStatus(approval.status) !== 'approved') {
+          sendJson(res, 409, { error: 'approval_required', message: 'Review must be approved before court sending status.' });
+          return true;
+        }
+        nextStatus = 'completed';
+        completedAt = now;
+      }
+
+      const historyJson = appendApprovalHistory(approval, action, session.full_name, comment);
+      await run(dbPath, `
+        UPDATE general_case_review_approvals
+        SET status=?, reviewer_comment=?,
+            marked_file_path=?, history_json=?, updated_at=?, approved_at=?, completed_at=?
+        WHERE id=?
+      `, [
+        nextStatus,
+        comment || approval.reviewer_comment || '',
+        markedFilePath,
+        historyJson,
+        now,
+        approvedAt,
+        completedAt,
+        approvalId
+      ]);
+      sendJson(res, 200, approvalResponse(await get(dbPath, 'SELECT * FROM general_case_review_approvals WHERE id=?', [approvalId])));
+      return true;
+    }
+
     const generalArchiveRestoreMatch = path.match(/^\/api\/general-cases\/archive\/(\d+)\/restore$/);
     if (generalArchiveRestoreMatch && req.method === 'POST') {
       const archiveId = Number(generalArchiveRestoreMatch[1]);
@@ -1536,17 +3211,27 @@ if (meetingsMatchSourcePort) {
 
     const m = path.match(/^\/api\/general-cases\/(\d+)$/);
     if (m) {
+      const session = await getRequestSession(req, dbPath);
       const id = Number(m[1]);
-      if (req.method === 'GET') { sendJson(res, 200, await get(dbPath, 'SELECT * FROM general_cases WHERE id=?', [id])); return true; }
+      const existingCase = await get(dbPath, 'SELECT * FROM general_cases WHERE id=?', [id]);
+      if (!existingCase) { sendJson(res, 404, { error: 'general_case_not_found' }); return true; }
+      if (!hasPermission(session, PERMISSIONS.CASES_VIEW_ANY) && !isOwnGeneralCase(session, existingCase)) {
+        sendJson(res, 403, { error: 'forbidden' });
+        return true;
+      }
+      if (req.method === 'GET') { sendJson(res, 200, existingCase); return true; }
       if (req.method === 'PUT') {
+        if (!canEditGeneralCase(session, existingCase)) { sendJson(res, 403, { error: 'forbidden' }); return true; }
         const rawGeneralBody = await readBody(req);
         const d = normCase(rawGeneralBody);
+        if (!hasPermission(session, PERMISSIONS.CASES_EDIT_ANY)) d.executor = session.full_name;
         await run(dbPath, `UPDATE general_cases SET case_no=?,court_no=?,court=?,judge=?,executor=?,category=?,procedural_position=?,claim_subject=?,claim_address=?,registration_date=?,review_result=?,control_flag=?,attendance_flag=?,attendance_hearing_missing=?,review_show_flag=?,emergency_fund_flag=?,registry_flag=?,comments=?,judicial_act_date_first=?,first_instance_act_type=?,motivated_decision_date=?,appeal_act_date=?,cassation_act_date=?,documents_json=?,process_kind=?,act_instance=?,proceeding_form=?,appeal_kind=?,order_copy_date=?,apk_cassation_has_appeal=?,supervision_cassation_exhausted=?,late_motivated_received=?,appeals_json=?,updated_at=?,plaintiff=?,defendant=? WHERE id=?`, [d.case_no,d.court_no,d.court,d.judge,d.executor,d.category,d.procedural_position,d.claim_subject,d.claim_address,d.registration_date,d.review_result,d.control_flag,d.attendance_flag,d.attendance_hearing_missing,d.review_show_flag,d.emergency_fund_flag,d.registry_flag,d.comments,d.judicial_act_date_first,d.first_instance_act_type,d.motivated_decision_date,d.appeal_act_date,d.cassation_act_date,d.documents_json,d.process_kind,d.act_instance,d.proceeding_form,d.appeal_kind,d.order_copy_date,d.apk_cassation_has_appeal,d.supervision_cassation_exhausted,d.late_motivated_received,d.appeals_json,new Date().toISOString(),d.plaintiff,d.defendant,id]);
         if (!rawGeneralBody.skip_linked) await syncLinked(dbPath, id, d);
         sendJson(res, 200, await get(dbPath, 'SELECT * FROM general_cases WHERE id=?', [id])); return true;
       }
       if (req.method === 'DELETE') {
-        const row = await get(dbPath, 'SELECT * FROM general_cases WHERE id=?', [id]);
+        if (!canEditGeneralCase(session, existingCase)) { sendJson(res, 403, { error: 'forbidden' }); return true; }
+        const row = existingCase;
         if (row) {
           await run(dbPath, `INSERT INTO general_cases_archive (source_id,case_no,court_no,court,judge,executor,category,procedural_position,claim_subject,claim_address,registration_date,review_result,control_flag,attendance_flag,attendance_hearing_missing,review_show_flag,emergency_fund_flag,registry_flag,comments,judicial_act_date_first,first_instance_act_type,motivated_decision_date,appeal_act_date,cassation_act_date,documents_json,process_kind,act_instance,proceeding_form,appeal_kind,order_copy_date,apk_cassation_has_appeal,supervision_cassation_exhausted,late_motivated_received,appeals_json,archived_at,plaintiff,defendant) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [row.id,row.case_no,row.court_no,row.court,row.judge,row.executor,row.category,row.procedural_position,row.claim_subject,row.claim_address || '',row.registration_date,row.review_result,row.control_flag,row.attendance_flag,row.attendance_hearing_missing || 0,row.review_show_flag || 0,row.emergency_fund_flag || 0,row.registry_flag || 0,row.comments || '',row.judicial_act_date_first || '',row.first_instance_act_type || '',row.motivated_decision_date || '',row.appeal_act_date || '',row.cassation_act_date || '',row.documents_json || '',row.process_kind || '',row.act_instance || '',row.proceeding_form || '',row.appeal_kind || '',row.order_copy_date || '',row.apk_cassation_has_appeal || '',row.supervision_cassation_exhausted || '',row.late_motivated_received || '',row.appeals_json || '',new Date().toISOString(),row.plaintiff,row.defendant]);
           await run(dbPath, 'DELETE FROM general_cases WHERE id=?', [id]);
@@ -2113,9 +3798,18 @@ if (emergencyMatch) {
 }
 
     if (path === '/api/court-schedule' && req.method === 'GET') {
+      const session = await getRequestSession(req, dbPath);
+      const whereSql = hasPermission(session, PERMISSIONS.SCHEDULE_VIEW_ANY)
+        ? ''
+        : `WHERE court_schedule.is_date_row=1
+          OR COALESCE(court_schedule.representative,'')=?
+          OR COALESCE(general_cases.executor,'')=?`;
+      const params = hasPermission(session, PERMISSIONS.SCHEDULE_VIEW_ANY) ? [] : [session.full_name, session.full_name];
       const rows = await all(dbPath, `
-        SELECT *
+        SELECT court_schedule.*
         FROM court_schedule
+        LEFT JOIN general_cases ON general_cases.id=court_schedule.general_case_id
+        ${whereSql}
         ORDER BY
           CASE WHEN session_date IS NULL OR session_date='' THEN 1 ELSE 0 END,
           substr(session_date, 7, 4) || '-' || substr(session_date, 4, 2) || '-' || substr(session_date, 1, 2) ASC,
@@ -2123,7 +3817,7 @@ if (emergencyMatch) {
           COALESCE(time, '') ASC,
           id ASC
         LIMIT 5000
-      `);
+      `, params);
       sendJson(res, 200, rows);
       return true;
     }
@@ -2154,7 +3848,9 @@ if (emergencyMatch) {
     }
 
     if (path === '/api/court-schedule/case' && req.method === 'POST') {
+      const session = await getRequestSession(req, dbPath);
       const d = normSchedule(await readBody(req));
+      if (!hasPermission(session, PERMISSIONS.SCHEDULE_EDIT_ANY)) d.representative = session.full_name;
 
       if (!d.session_date) {
         sendJson(res, 400, { error: 'session_date_required' });
@@ -2181,7 +3877,11 @@ if (emergencyMatch) {
       const id = Number(courtScheduleMatch[1]);
 
       if (req.method === 'PUT') {
+        const session = await getRequestSession(req, dbPath);
+        const existingSchedule = await get(dbPath, 'SELECT * FROM court_schedule WHERE id=?', [id]);
+        if (!canEditScheduleRow(session, existingSchedule)) { sendJson(res, 403, { error: 'forbidden' }); return true; }
         const d = normSchedule(await readBody(req));
+        if (!hasPermission(session, PERMISSIONS.SCHEDULE_EDIT_ANY)) d.representative = session.full_name;
         await run(dbPath, `
           UPDATE court_schedule
           SET session_date=?, court=?, time=?, representative=?, plaintiff=?, defendant=?,
@@ -2197,6 +3897,9 @@ if (emergencyMatch) {
       }
 
       if (req.method === 'DELETE') {
+        const session = await getRequestSession(req, dbPath);
+        const existingSchedule = await get(dbPath, 'SELECT * FROM court_schedule WHERE id=?', [id]);
+        if (!canEditScheduleRow(session, existingSchedule)) { sendJson(res, 403, { error: 'forbidden' }); return true; }
         await run(dbPath, 'DELETE FROM court_schedule WHERE id=?', [id]);
         sendJson(res, 200, { ok: true });
         return true;
@@ -2216,7 +3919,7 @@ if (emergencyMatch) {
       const end = parsedUrl.searchParams.get('end') || '';
       const requestedUser = parsedUrl.searchParams.get('user') || '';
       const generalCaseId = Number(parsedUrl.searchParams.get('general_case_id') || 0);
-      const effectiveUser = session.is_admin ? requestedUser : session.full_name;
+      const effectiveUser = hasPermission(session, PERMISSIONS.CALENDAR_VIEW_ANY) ? requestedUser : session.full_name;
 
       const where = [];
       const params = [];
@@ -2414,8 +4117,7 @@ if (emergencyMatch) {
 
     return false;
   } catch (err) {
-    console.error(err);
-    if (res.writableEnded || res.destroyed) return true;
+    if (res.headersSent || res.writableEnded || res.destroyed) return true;
     if (err?.code === 'PAYLOAD_TOO_LARGE') {
       sendJson(res, 413, { error: 'payload_too_large', message: err.message, max_bytes: err.maxBytes || DEFAULT_JSON_BODY_LIMIT });
       return true;
@@ -2424,6 +4126,31 @@ if (emergencyMatch) {
       sendJson(res, 400, { error: 'invalid_json', message: err.message });
       return true;
     }
+    if (err?.code === 'INVALID_PERMISSION') {
+      sendJson(res, 400, { error: 'invalid_permission', permission: err.permission || '' });
+      return true;
+    }
+    if (err?.code === 'REPORT_SCOPE_FORBIDDEN' || err?.code === 'REPORT_FORBIDDEN') {
+      sendJson(res, 403, { error: 'forbidden', message: err.message });
+      return true;
+    }
+    if (err?.code === 'REPORT_NOT_FOUND') {
+      sendJson(res, 404, { error: 'report_not_found', message: err.message });
+      return true;
+    }
+    if (err?.code === 'REPORT_USER_REQUIRED' || err?.code === 'REPORT_EMPTY_FILE') {
+      sendJson(res, 400, { error: err.code.toLowerCase(), message: err.message });
+      return true;
+    }
+    if (err?.code === 'REPORT_UNSUPPORTED_TYPE') {
+      sendJson(res, 415, { error: 'unsupported_file_type', allowed: ['pdf', 'doc', 'docx', 'xls', 'xlsx'], message: err.message });
+      return true;
+    }
+    if (err?.code === 'REPORT_FILE_TOO_LARGE') {
+      sendJson(res, 413, { error: 'file_too_large', max_mb: 100, message: err.message });
+      return true;
+    }
+    console.error(err);
     sendJson(res, 500, { error: 'server_error', message: err?.message || 'Внутренняя ошибка сервера' });
     return true;
   }

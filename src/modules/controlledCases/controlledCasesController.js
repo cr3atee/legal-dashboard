@@ -1,6 +1,9 @@
 import { dbApi } from '../../api/dbApi.js';
 import { showNotification } from '../../layout/notifications.js';
 
+const PENDING_CONTROLLED_CASE_KEY = 'legal-dashboard-open-controlled-case-id';
+const PENDING_CONTROLLED_RETURN_VIEW_KEY = 'legal-dashboard-open-controlled-case-return-view';
+
 const COURT_FALLBACK_VALUES = [
   'Железнодорожный районный суд г.Барнаула',
   'Октябрьский районный суд г.Барнаула',
@@ -20,7 +23,8 @@ let state = {
   viewMode: localStorage.getItem('controlledCasesViewMode') || 'cards',
   calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   calendarFocusDate: null,
-  calendarFocusIds: []
+  calendarFocusIds: [],
+  returnView: ''
 };
 
 const fields = [
@@ -93,6 +97,10 @@ export function initControlledCasesPage() {
     if (event.target.closest('[data-controlled-full-table]')) openFullTable();
     if (event.target.closest('[data-controlled-full-close]')) closeFullTable();
     if (event.target.closest('[data-controlled-view-close]')) closeControlledViewCard();
+    if (event.target.closest('[data-controlled-back]')) {
+      returnToControlledSource();
+      return;
+    }
 
     if (event.target.closest('[data-controlled-calendar-filter-clear]')) {
       clearCalendarCardFilter();
@@ -187,6 +195,17 @@ export function initControlledCasesPage() {
   });
 
   window.addEventListener('controlled-cases:reload', loadControlledCases);
+  window.addEventListener('reports:open-controlled-case', event => {
+    const id = Number(event.detail?.id);
+    if (id) {
+      state.returnView = event.detail?.sourceView || 'reports';
+      syncControlledBackButton();
+      openControlledCaseById(id);
+    }
+  });
+  window.addEventListener('app:view-changed', event => {
+    if (event.detail?.viewId === 'controlledCases') openPendingControlledCase();
+  });
 
   fillDatalists();
   checkDb();
@@ -197,6 +216,7 @@ export function initControlledCasesPage() {
 
 function openControlledEditor() {
   setControlledEditorOpen(true);
+  syncControlledBackButton();
 }
 
 function toggleControlledEditor() {
@@ -212,6 +232,24 @@ function setControlledEditorOpen(open) {
   document.body.classList.toggle('controlled-editor-sheet-open', Boolean(open));
   const button = document.querySelector('[data-controlled-open]');
   if (button) button.textContent = open ? '−' : '＋';
+}
+
+function syncControlledBackButton() {
+  const button = document.querySelector('[data-controlled-back]');
+  const editorOpen = document.querySelector('[data-controlled-editor]')?.classList.contains('is-open');
+  if (button) button.hidden = !state.returnView || !editorOpen;
+}
+
+function returnToControlledSource() {
+  const view = state.returnView;
+  state.returnView = '';
+  syncControlledBackButton();
+  if (!view) return;
+  if (typeof window.openView === 'function') {
+    window.openView(view);
+  } else {
+    document.querySelector(`[data-view="${view}"]`)?.click();
+  }
 }
 
 function openControlledEditorFromCard(rawRow, cardElement = null) {
@@ -282,6 +320,7 @@ async function loadControlledCases() {
       : await dbApi.getControlledCases();
 
     applySearchAndRender();
+    openPendingControlledCase();
   } catch (error) {
     body.innerHTML = `<tr><td colspan="5" class="empty-cell error">Не удалось загрузить данные: ${escapeHtml(error.message)}</td></tr>`;
     state.filteredRows = [];
@@ -300,6 +339,44 @@ function applySearchAndRender() {
   updateCount();
 
   window.dispatchEvent(new CustomEvent('controlled-cases:updated', { detail: state.filteredRows }));
+}
+
+function openPendingControlledCase() {
+  let id = 0;
+  let returnView = '';
+  try {
+    id = Number(window.sessionStorage?.getItem(PENDING_CONTROLLED_CASE_KEY));
+    returnView = window.sessionStorage?.getItem(PENDING_CONTROLLED_RETURN_VIEW_KEY) || '';
+  } catch {}
+  if (!id) return;
+  state.returnView = returnView;
+  if (openControlledCaseById(id)) {
+    try {
+      window.sessionStorage?.removeItem(PENDING_CONTROLLED_CASE_KEY);
+      window.sessionStorage?.removeItem(PENDING_CONTROLLED_RETURN_VIEW_KEY);
+    } catch {}
+  }
+}
+
+function openControlledCaseById(id) {
+  if (state.archived) {
+    state.archived = false;
+    const toggleArchive = document.querySelector('[data-controlled-archive-toggle]');
+    if (toggleArchive) {
+      toggleArchive.classList.remove('primary');
+      toggleArchive.textContent = 'Архив';
+    }
+    loadControlledCases();
+    return false;
+  }
+
+  const targetId = Number(id);
+  const row = [...state.rows, ...state.filteredRows].find(item => Number(normalizeArchiveRow(item).id) === targetId);
+  if (!row) return false;
+  fillForm(row);
+  openControlledEditor();
+  scrollOpenedEditorIntoView();
+  return true;
 }
 
 function filterRows(rows, rawSearch) {
@@ -658,6 +735,8 @@ function resetForm() {
   form.reset();
   state.currentId = null;
   state.historyRows = [];
+  state.returnView = '';
+  syncControlledBackButton();
 
   form.elements.id.value = '';
   form.elements.case_number.value = '№';

@@ -9,14 +9,26 @@ export function initAuthGate(onAuthenticated) {
   const existing = getAuthSession();
 
   if (existing?.full_name && existing?.token) {
-    window.legalDashboardSession = existing;
-    onAuthenticated(existing);
+    refreshExistingSession(existing, onAuthenticated);
     return;
   }
 
   if (existing) clearAuthSession();
 
   renderLoginScreen(onAuthenticated);
+}
+
+async function refreshExistingSession(existing, onAuthenticated) {
+  try {
+    const session = await dbApi.getCurrentSession();
+    const refreshed = { ...session, token: session.token || existing.token };
+    setAuthSession(refreshed);
+    window.legalDashboardSession = refreshed;
+    onAuthenticated(refreshed);
+  } catch {
+    clearAuthSession();
+    renderLoginScreen(onAuthenticated);
+  }
 }
 
 function renderLoginScreen(onAuthenticated) {
@@ -144,6 +156,43 @@ function renderLoginScreen(onAuthenticated) {
 }
 
 export function initAuthUi() {
+  if (!window.__topbarProfileDropdownInitialized) {
+    window.__topbarProfileDropdownInitialized = true;
+
+    document.addEventListener('click', event => {
+      const profileCard = event.target.closest('[data-profile-menu-toggle]');
+      const isMenuClick = Boolean(event.target.closest('.topbar-profile-dropdown'));
+
+      if (profileCard && !isMenuClick) {
+        const shouldOpen = !profileCard.classList.contains('is-open');
+        closeTopbarProfileDropdown();
+        setTopbarProfileDropdown(profileCard, shouldOpen);
+        return;
+      }
+
+      if (!profileCard) {
+        closeTopbarProfileDropdown();
+      }
+    });
+
+    document.addEventListener('keydown', event => {
+      const profileCard = event.target.closest('[data-profile-menu-toggle]');
+      const isMenuClick = Boolean(event.target.closest('.topbar-profile-dropdown'));
+
+      if ((event.key === 'Enter' || event.key === ' ') && profileCard && !isMenuClick) {
+        event.preventDefault();
+        const shouldOpen = !profileCard.classList.contains('is-open');
+        closeTopbarProfileDropdown();
+        setTopbarProfileDropdown(profileCard, shouldOpen);
+        return;
+      }
+
+      if (event.key === 'Escape') closeTopbarProfileDropdown();
+    });
+
+    window.addEventListener('app:view-changed', closeTopbarProfileDropdown);
+  }
+
   document.addEventListener('click', async event => {
     if (event.target.closest('[data-auth-logout]')) {
       try { await dbApi.logout(); } catch {}
@@ -151,6 +200,19 @@ export function initAuthUi() {
       window.location.reload();
     }
   });
+}
+
+function closeTopbarProfileDropdown() {
+  document.querySelectorAll('.topbar-profile-card').forEach(card => {
+    setTopbarProfileDropdown(card, false);
+    if (card instanceof HTMLElement) card.blur();
+  });
+}
+
+function setTopbarProfileDropdown(card, isOpen) {
+  if (!(card instanceof HTMLElement)) return;
+  card.classList.toggle('is-open', isOpen);
+  card.setAttribute('aria-expanded', String(isOpen));
 }
 
 function setLoginState(card, errorNode, lock, visual, state, message = '') {

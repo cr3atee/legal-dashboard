@@ -28,6 +28,10 @@
   background: linear-gradient(180deg, #191a4a, #1f3b63);
 }
 
+.emergency-editor-card::before {
+  background: linear-gradient(180deg, #2f6fe8, #2455cf);
+}
+
 .emergency-editor-head,
 .emergency-table-title {
   display: flex;
@@ -1290,3 +1294,22 @@
   display: none !important;
 }
 .emergency-field-hint{display:block;margin-top:5px;color:#64748b;font-size:11px;line-height:1.35}
+
+/* Emergency fund form: calm blue section strip, distinct from the primary save button. */
+.emergency-form-content .emergency-inner-panel h4,
+.emergency-inner-panel h4 {
+  background: linear-gradient(90deg, #d7e8ff 0%, #edf6ff 100%) !important;
+  border-bottom: 1px solid #b9d0ff !important;
+  color: #17345f !important;
+}
+
+.emergency-form-content .emergency-inner-panel h4 {
+  padding: 16px 22px 12px;
+}
+
+:root[data-theme="dark"] .emergency-form-content .emergency-inner-panel h4,
+:root[data-theme="dark"] .emergency-inner-panel h4 {
+  background: linear-gradient(90deg, #c7deef 0%, #e4f2fb 100%) !important;
+  border-bottom-color: #8eb8d3 !important;
+  color: #142333 !important;
+}

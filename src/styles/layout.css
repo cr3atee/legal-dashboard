@@ -196,11 +196,17 @@ body.sidebar-collapsed .app {
   }
 }
 
-/* Desktop sidebar keeps layout compact; the panel itself expands as an overlay. */
 @media (min-width: 769px) {
-  .app,
+  .app {
+    grid-template-columns: 292px minmax(0, 1fr) !important;
+    transition: grid-template-columns .22s cubic-bezier(.2, 0, .2, 1) !important;
+  }
+
   body.sidebar-collapsed .app {
     grid-template-columns: 92px minmax(0, 1fr) !important;
-    transition: grid-template-columns .22s cubic-bezier(.2, 0, .2, 1) !important;
+  }
+
+  body.sidebar-collapsed.sidebar-hover-expanded .app {
+    grid-template-columns: 292px minmax(0, 1fr) !important;
   }
 }

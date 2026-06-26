@@ -9,7 +9,7 @@ export function renderSchedulePage() {
           <span class="schedule-title-icon" aria-hidden="true">🏛️</span>
           <h2>График судебных заседаний</h2>
           <button class="icon-button schedule-refresh-icon" data-schedule-refresh type="button" aria-label="Обновить" title="Обновить">↻</button>
-          <button class="btn schedule-add-date-action" data-schedule-date-new type="button">📅 Добавить дату</button>
+          <button class="btn primary schedule-add-date-action" data-schedule-date-new type="button">📅 Добавить дату</button>
         </div>
       </div>
 
